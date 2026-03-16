@@ -127,6 +127,31 @@ export const teamMatches = mysqlTable(
 export type TeamMatch = typeof teamMatches.$inferSelect;
 export type InsertTeamMatch = typeof teamMatches.$inferInsert;
 
+/** Awards won by a team at a specific event */
+export const teamAwards = mysqlTable(
+  "team_awards",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    teamNumber: varchar("teamNumber", { length: 16 }).notNull(),
+    /** RobotEvents event code e.g. RE-VIQRC-25-0853 */
+    eventCode: varchar("eventCode", { length: 32 }).notNull(),
+    eventName: text("eventName").notNull(),
+    /** Award name e.g. "Excellence Award (VIQRC)" */
+    awardName: varchar("awardName", { length: 128 }).notNull(),
+    /** What the award qualifies for e.g. "World Championship" */
+    qualifiesFor: varchar("qualifiesFor", { length: 128 }),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  (t) => [
+    index("idx_team_awards_teamNumber").on(t.teamNumber),
+    index("idx_team_awards_eventCode").on(t.eventCode),
+    uniqueIndex("uniq_team_awards").on(t.teamNumber, t.eventCode, t.awardName),
+  ]
+);
+
+export type TeamAward = typeof teamAwards.$inferSelect;
+export type InsertTeamAward = typeof teamAwards.$inferInsert;
+
 /** Tracks when data was last synced */
 export const syncLog = mysqlTable("sync_log", {
   id: int("id").autoincrement().primaryKey(),

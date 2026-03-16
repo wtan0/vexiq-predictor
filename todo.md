@@ -47,3 +47,12 @@
 - [x] Update WorldFinals table: replace Win Rate column with Avg TW Score
 - [x] Add Sync Top 5 button on WorldFinals page
 - [x] Fix prediction methodology note to reflect cooperative VEX IQ model
+
+## Match History Fix (Session 3)
+- [x] Inspect RobotEvents 478M page to understand events/matches/awards structure
+- [x] Fix scraper to paginate through all pages of Match Results tab (was only reading page 1)
+- [x] Add awards scraping from Awards tab on team page
+- [x] Add team_awards table to DB schema with migration
+- [x] Add tRPC endpoint for fetching team awards
+- [x] Display awards section on Team Profile (grouped by event, color-coded by qualification level)
+- [ ] Re-sync team 478M to populate all 7 events and awards (user action required)

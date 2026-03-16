@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useParams, useLocation } from "wouter";
+import { Award } from "lucide-react";
 import {
   Trophy, MapPin, Building2, TrendingUp, Swords, ArrowLeft,
   RefreshCw, Loader2, Target, Zap, Users, BarChart3,
@@ -34,14 +35,21 @@ export default function TeamProfile() {
     { enabled: !!teamNumber }
   );
 
+  const { data: awards, refetch: refetchAwards } = trpc.teams.awards.useQuery(
+    { teamNumber: teamNumber ?? "" },
+    { enabled: !!teamNumber }
+  );
+
   const syncFull = trpc.teams.syncFullHistory.useMutation({
     onSuccess: (data) => {
+      const awardsMsg = (data as any).awardsFound > 0 ? `, ${(data as any).awardsFound} awards` : "";
       toast.success(
-        `Loaded ${data.eventsFound} events, ${data.matchRecords} matches for ${teamNumber}`,
+        `Loaded ${data.eventsFound} events, ${data.matchRecords} matches${awardsMsg} for ${teamNumber}`,
         { description: "Season history updated. Charts refreshed." }
       );
       refetchStats();
       refetchProgress();
+      refetchAwards();
     },
     onError: (e) => toast.error(`Sync failed: ${e.message}`),
   });
@@ -597,6 +605,61 @@ export default function TeamProfile() {
             </CardContent>
           </Card>
         ) : null}
+
+        {/* ── Awards Section ─────────────────────────────────────────────── */}
+        {awards && awards.length > 0 && (
+          <Card className="bg-card border-border">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base font-semibold flex items-center gap-2">
+                <Award className="h-4 w-4 text-amber-400" />
+                Awards & Honors
+                <Badge variant="secondary" className="ml-auto text-xs">{awards.length}</Badge>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="pt-0">
+              <div className="space-y-3">
+                {/* Group awards by event */}
+                {Object.entries(
+                  awards.reduce((acc, a) => {
+                    const key = a.eventCode;
+                    if (!acc[key]) acc[key] = { eventName: a.eventName, awards: [] };
+                    acc[key].awards.push(a);
+                    return acc;
+                  }, {} as Record<string, { eventName: string; awards: typeof awards }>)
+                ).map(([eventCode, group]) => (
+                  <div key={eventCode} className="rounded-lg border border-border/50 bg-background/30 p-3">
+                    <p className="text-xs text-muted-foreground font-medium mb-2 truncate">{group.eventName}</p>
+                    <div className="flex flex-wrap gap-2">
+                      {group.awards.map((a, i) => {
+                        const isWorld = a.qualifiesFor?.includes("World");
+                        const isRegion = a.qualifiesFor?.includes("Region");
+                        return (
+                          <div key={i} className="flex items-center gap-1.5">
+                            <Badge
+                              className={`text-xs font-medium ${
+                                isWorld
+                                  ? "bg-amber-500/20 text-amber-300 border-amber-500/40 border"
+                                  : isRegion
+                                  ? "bg-blue-500/20 text-blue-300 border-blue-500/40 border"
+                                  : "bg-muted text-muted-foreground border-border border"
+                              }`}
+                            >
+                              <Trophy className="h-3 w-3 mr-1" />
+                              {a.awardName.replace(" (VIQRC)", "").replace(" Award", "")}
+                            </Badge>
+                            {a.qualifiesFor && (
+                              <span className="text-xs text-muted-foreground/60">→ {a.qualifiesFor}</span>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
       </div>
     </div>
   );

@@ -1,0 +1,9 @@
+{
+  "query": "CREATE TABLE `team_awards` (\n\t`id` int AUTO_INCREMENT NOT NULL,\n\t`teamNumber` varchar(16) NOT NULL,\n\t`eventCode` varchar(32) NOT NULL,\n\t`eventName` text NOT NULL,\n\t`awardName` varchar(128) NOT NULL,\n\t`qualifiesFor` varchar(128),\n\t`createdAt` timestamp NOT NULL DEFAULT (now()),\n\tCONSTRAINT `team_awards_id` PRIMARY KEY(`id`),\n\tCONSTRAINT `uniq_team_awards` UNIQUE(`teamNumber`,`eventCode`,`awardName`)\n);\nCREATE INDEX `idx_team_awards_teamNumber` ON `team_awards` (`teamNumber`);\nCREATE INDEX `idx_team_awards_eventCode` ON `team_awards` (`eventCode`);",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2QKfi1Ndea9wXr8.root --database 4tK87PRTpvQf5EmMsJgnMM --execute CREATE TABLE `team_awards` (\n\t`id` int AUTO_INCREMENT NOT NULL,\n\t`teamNumber` varchar(16) NOT NULL,\n\t`eventCode` varchar(32) NOT NULL,\n\t`eventName` text NOT NULL,\n\t`awardName` varchar(128) NOT NULL,\n\t`qualifiesFor` varchar(128),\n\t`createdAt` timestamp NOT NULL DEFAULT (now()),\n\tCONSTRAINT `team_awards_id` PRIMARY KEY(`id`),\n\tCONSTRAINT `uniq_team_awards` UNIQUE(`teamNumber`,`eventCode`,`awardName`)\n);\nCREATE INDEX `idx_team_awards_teamNumber` ON `team_awards` (`teamNumber`);\nCREATE INDEX `idx_team_awards_eventCode` ON `team_awards` (`eventCode`);",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 957
+}

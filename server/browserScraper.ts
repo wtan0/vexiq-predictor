@@ -2,12 +2,24 @@
  * Browser-based scraper using Puppeteer + system Chromium
  * to bypass Cloudflare protection on RobotEvents.
  *
- * Page structure for event results (e.g. RE-VIQRC-25-3671.html#results-):
- *   - Default tab = "Skills": Table[1] has columns
+ * Team page tabs: Info | Rankings | Match Results | Awards
+ *
+ * Match Results tab: Shows matches grouped by event, with pagination.
+ *   Each event section has a table with columns:
+ *     Match Name | Date | Team1 | Score | Team2 | Score
+ *   Followed by a small Rank/WP table.
+ *   Event links in the format /RE-VIQRC-25-XXXX.html
+ *
+ * Awards tab: Shows awards grouped by event.
+ *   Format: [RE-VIQRC-25-XXXX] Event Name
+ *           Award Name | Qualifies For
+ *
+ * Event page structure (e.g. RE-VIQRC-25-3671.html#results-):
+ *   - Default tab = "Skills": Table with columns
  *       Rank | Team | Driver Attempts | Driver Highscore | Programming Attempts | Programming Highscore | Total Highscore
- *   - "Division 1" tab: Table[1] has columns
+ *   - "Division 1" tab: Table with columns
  *       Match | Red Team | Score | Blue Team | Score
- *     Table[3] has columns: Rank | Team | Name | Avg. Points  (teamwork rankings)
+ *     Rankings table: Rank | Team | Name | Avg. Points
  */
 
 // Use puppeteer-extra with stealth plugin to bypass Cloudflare bot detection
@@ -22,8 +34,10 @@ import { getDb } from "./db";
 import {
   teamEvents,
   teamMatches,
+  teamAwards,
   InsertTeamEvent,
   InsertTeamMatch,
+  InsertTeamAward,
 } from "../drizzle/schema";
 import { eq, and } from "drizzle-orm";
 
@@ -98,9 +112,24 @@ export interface EventMatchData {
   avgTeamworkScore: number | null;
 }
 
-// ─── Team event discovery ─────────────────────────────────────────────────────
+export interface AwardRecord {
+  eventCode: string;
+  eventName: string;
+  awardName: string;
+  qualifiesFor: string | null;
+}
 
-export async function scrapeTeamEvents(teamNumber: string): Promise<string[]> {
+// ─── Team event discovery (with pagination) ───────────────────────────────────
+
+/**
+ * Scrape the team page to get all event codes from the Match Results tab.
+ * Handles pagination by clicking the "next page" button until all pages are loaded.
+ * Also scrapes awards from the Awards tab.
+ */
+export async function scrapeTeamPage(teamNumber: string): Promise<{
+  eventCodes: string[];
+  awards: AwardRecord[];
+}> {
   const browser = await getBrowser();
   const page = await newPage(browser);
 
@@ -108,41 +137,227 @@ export async function scrapeTeamEvents(teamNumber: string): Promise<string[]> {
     const url = `${BASE_URL}/teams/VIQRC/${encodeURIComponent(teamNumber)}`;
     console.log(`[BrowserScraper] Loading team page: ${url}`);
     await page.goto(url, { waitUntil: "networkidle2", timeout: 45000 });
-    await sleep(1000);
+    await sleep(1500);
 
-    // Click "Match Results" tab to reveal the event list
-    const clicked = await page.evaluate(() => {
+    // ── Click "Match Results" tab ────────────────────────────────────────────
+    const clickedMatchResults = await page.evaluate(() => {
       const links = Array.from(document.querySelectorAll("a"));
       const tab = links.find((a) => a.textContent?.trim() === "Match Results");
       if (tab) { (tab as HTMLAnchorElement).click(); return true; }
       return false;
     });
-    if (clicked) await sleep(1500);
+    if (clickedMatchResults) await sleep(1500);
 
-    // Extract event codes from links like /RE-VIQRC-25-XXXX.html
-    const eventCodes = await page.evaluate(() => {
-      const links = Array.from(document.querySelectorAll("a[href]"));
-      const codes: string[] = [];
-      const seen = new Set<string>();
-      for (const a of links) {
-        const href = (a as HTMLAnchorElement).href || "";
-        const m = href.match(/\/(RE-VIQRC-25-\d+)\.html/);
-        if (m && !seen.has(m[1])) {
-          seen.add(m[1]);
-          codes.push(m[1]);
+    // ── Collect event codes across all pages ─────────────────────────────────
+    const allEventCodes = new Set<string>();
+
+    const collectEventCodesFromCurrentPage = async () => {
+      const codes = await page.evaluate(() => {
+        const links = Array.from(document.querySelectorAll("a[href]"));
+        const found: string[] = [];
+        const seen = new Set<string>();
+        for (const a of links) {
+          const href = (a as HTMLAnchorElement).href || "";
+          const m = href.match(/\/(RE-VIQRC-25-\d+)\.html/);
+          if (m && !seen.has(m[1])) {
+            seen.add(m[1]);
+            found.push(m[1]);
+          }
         }
-      }
-      return codes;
+        return found;
+      });
+      codes.forEach((c) => allEventCodes.add(c));
+      return codes.length;
+    };
+
+    // Collect from page 1
+    await collectEventCodesFromCurrentPage();
+
+    // Check for pagination and iterate through all pages
+    let pageNum = 1;
+    while (true) {
+      // Look for a "next page" link — typically "»" or a page number button
+      const hasNextPage = await page.evaluate((currentPage: number) => {
+        // Find pagination links — look for page numbers greater than current
+        const paginationLinks = Array.from(document.querySelectorAll("a, button"));
+        // Look for "»" next button that is not disabled
+        const nextBtn = paginationLinks.find((el) => {
+          const text = el.textContent?.trim();
+          return text === "»" || text === "›" || text === "Next";
+        });
+        if (nextBtn && !(nextBtn as HTMLElement).classList.contains("disabled")) {
+          (nextBtn as HTMLElement).click();
+          return true;
+        }
+        // Also try clicking the next page number
+        const pageNumLink = paginationLinks.find((el) => {
+          const text = el.textContent?.trim();
+          return text === String(currentPage + 1);
+        });
+        if (pageNumLink) {
+          (pageNumLink as HTMLElement).click();
+          return true;
+        }
+        return false;
+      }, pageNum);
+
+      if (!hasNextPage) break;
+
+      pageNum++;
+      await sleep(1500);
+      const newCodes = await collectEventCodesFromCurrentPage();
+      console.log(`[BrowserScraper] Page ${pageNum}: found ${newCodes} event codes`);
+
+      // Safety limit
+      if (pageNum >= 10) break;
+    }
+
+    console.log(`[BrowserScraper] Found ${allEventCodes.size} total events for team ${teamNumber} across ${pageNum} pages`);
+
+    // ── Click "Awards" tab ───────────────────────────────────────────────────
+    const clickedAwards = await page.evaluate(() => {
+      const links = Array.from(document.querySelectorAll("a"));
+      const tab = links.find((a) => a.textContent?.trim() === "Awards");
+      if (tab) { (tab as HTMLAnchorElement).click(); return true; }
+      return false;
     });
 
-    console.log(`[BrowserScraper] Found ${eventCodes.length} events for team ${teamNumber}`);
-    return eventCodes;
+    const awards: AwardRecord[] = [];
+
+    if (clickedAwards) {
+      await sleep(1500);
+
+      // Scrape awards across all pages
+      let awardsPageNum = 1;
+      while (true) {
+        const pageAwards = await page.evaluate(() => {
+          const results: Array<{
+            eventCode: string;
+            eventName: string;
+            awardName: string;
+            qualifiesFor: string | null;
+          }> = [];
+
+          // Awards are structured as:
+          // [RE-VIQRC-25-XXXX] Event Name
+          //   Award Name | Qualifies For
+          // We parse the body text to extract this
+          const bodyText = document.body.innerText;
+          const lines = bodyText.split("\n").map((l) => l.trim()).filter(Boolean);
+
+          let currentEventCode = "";
+          let currentEventName = "";
+          let i = 0;
+
+          while (i < lines.length) {
+            const line = lines[i];
+            // Check if this line is an event header: [RE-VIQRC-25-XXXX] Event Name
+            const eventMatch = line.match(/^\[?(RE-VIQRC-25-\d+)\]?\s+(.*)/);
+            if (eventMatch) {
+              currentEventCode = eventMatch[1];
+              currentEventName = eventMatch[2].trim();
+              i++;
+              continue;
+            }
+            // Check if this is an award line (not a header, not "Award", not "Qualifies For")
+            if (
+              currentEventCode &&
+              line !== "Award" &&
+              line !== "Qualifies For" &&
+              line !== "Award\tQualifies For" &&
+              !line.startsWith("Team ") &&
+              !line.startsWith("VEX ") &&
+              !line.startsWith("Info") &&
+              !line.startsWith("Rankings") &&
+              !line.startsWith("Match Results") &&
+              !line.startsWith("Awards") &&
+              !line.startsWith("VEX IQ Robotics Competition") &&
+              !line.startsWith("Site ") &&
+              line.length > 3
+            ) {
+              // Check if it looks like an award name
+              if (
+                line.includes("Award") ||
+                line.includes("Champion") ||
+                line.includes("Excellence") ||
+                line.includes("Design") ||
+                line.includes("Build") ||
+                line.includes("Innovate") ||
+                line.includes("Skills")
+              ) {
+                // Next line might be "Qualifies For" value
+                let qualifiesFor: string | null = null;
+                if (i + 1 < lines.length) {
+                  const nextLine = lines[i + 1];
+                  if (
+                    nextLine === "Event Region Championship" ||
+                    nextLine === "World Championship" ||
+                    nextLine.includes("Championship") ||
+                    nextLine.includes("Qualifies")
+                  ) {
+                    qualifiesFor = nextLine;
+                    i++;
+                  }
+                }
+                results.push({
+                  eventCode: currentEventCode,
+                  eventName: currentEventName,
+                  awardName: line,
+                  qualifiesFor,
+                });
+              }
+            }
+            i++;
+          }
+          return results;
+        });
+
+        awards.push(...pageAwards);
+
+        // Check for next page in awards
+        const hasNextAwardsPage = await page.evaluate((currentPage: number) => {
+          const paginationLinks = Array.from(document.querySelectorAll("a, button"));
+          const nextBtn = paginationLinks.find((el) => {
+            const text = el.textContent?.trim();
+            return text === "»" || text === "›" || text === "Next";
+          });
+          if (nextBtn && !(nextBtn as HTMLElement).classList.contains("disabled")) {
+            (nextBtn as HTMLElement).click();
+            return true;
+          }
+          const pageNumLink = paginationLinks.find((el) => {
+            const text = el.textContent?.trim();
+            return text === String(currentPage + 1);
+          });
+          if (pageNumLink) {
+            (pageNumLink as HTMLElement).click();
+            return true;
+          }
+          return false;
+        }, awardsPageNum);
+
+        if (!hasNextAwardsPage) break;
+        awardsPageNum++;
+        await sleep(1500);
+        if (awardsPageNum >= 10) break;
+      }
+
+      console.log(`[BrowserScraper] Found ${awards.length} awards for team ${teamNumber}`);
+    }
+
+    return { eventCodes: Array.from(allEventCodes), awards };
   } catch (err) {
-    console.error(`[BrowserScraper] Error getting events for ${teamNumber}:`, err);
-    return [];
+    console.error(`[BrowserScraper] Error getting team page for ${teamNumber}:`, err);
+    return { eventCodes: [], awards: [] };
   } finally {
     await page.close();
   }
+}
+
+// Legacy wrapper for backward compatibility
+export async function scrapeTeamEvents(teamNumber: string): Promise<string[]> {
+  const { eventCodes } = await scrapeTeamPage(teamNumber);
+  return eventCodes;
 }
 
 // ─── Event data scraper ───────────────────────────────────────────────────────
@@ -168,6 +383,7 @@ export async function scrapeEventData(
     console.log(`[BrowserScraper] Loading event page: ${url}`);
     await page.goto(url, { waitUntil: "networkidle2", timeout: 45000 });
     await sleep(2000);
+
     // Debug: check what the page contains
     const debugInfo = await page.evaluate(() => {
       const tables = Array.from(document.querySelectorAll("table"));
@@ -182,6 +398,7 @@ export async function scrapeEventData(
       };
     });
     console.log(`[BrowserScraper] Page debug for ${eventCode}:`, JSON.stringify(debugInfo));
+
     // ── Meta: event name + date ──────────────────────────────────────────────
     const eventMeta = await page.evaluate(() => {
       // Use page title: "Event Name : Robot Events" → strip " : Robot Events"
@@ -373,10 +590,12 @@ export async function scrapeEventData(
 }
 
 // ─── Full team history sync ───────────────────────────────────────────────────
+
 export async function syncTeamFullHistory(teamNumber: string): Promise<{
   eventsFound: number;
   skillsRecords: number;
   matchRecords: number;
+  awardsFound: number;
 }> {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
@@ -385,18 +604,49 @@ export async function syncTeamFullHistory(teamNumber: string): Promise<{
   const dedicatedBrowser = await launchBrowser();
   let skillsCount = 0;
   let matchCount = 0;
+  let awardsCount = 0;
 
   // Override getBrowser temporarily for this sync
   const originalBrowser = _browser;
   _browser = dedicatedBrowser;
 
   let eventCodes: string[] = [];
+  let awards: AwardRecord[] = [];
+
   try {
-    eventCodes = await scrapeTeamEvents(teamNumber);
+    const teamPageData = await scrapeTeamPage(teamNumber);
+    eventCodes = teamPageData.eventCodes;
+    awards = teamPageData.awards;
   } catch (e) {
-    console.error(`[BrowserScraper] Failed to get events for ${teamNumber}:`, e);
+    console.error(`[BrowserScraper] Failed to get team page for ${teamNumber}:`, e);
   }
 
+  // ── Save awards ──────────────────────────────────────────────────────────
+  if (awards.length > 0) {
+    // Delete existing awards for this team
+    await db.delete(teamAwards).where(eq(teamAwards.teamNumber, teamNumber));
+
+    for (const award of awards) {
+      try {
+        const awardRow: InsertTeamAward = {
+          teamNumber,
+          eventCode: award.eventCode,
+          eventName: award.eventName,
+          awardName: award.awardName,
+          qualifiesFor: award.qualifiesFor,
+        };
+        await db.insert(teamAwards).values(awardRow).onDuplicateKeyUpdate({
+          set: { qualifiesFor: award.qualifiesFor },
+        });
+        awardsCount++;
+      } catch (err) {
+        console.error(`[BrowserScraper] Failed to save award:`, err);
+      }
+    }
+    console.log(`[BrowserScraper] Saved ${awardsCount} awards for ${teamNumber}`);
+  }
+
+  // ── Scrape each event ────────────────────────────────────────────────────
   for (const eventCode of eventCodes) {
     try {
       const { skills, matches } = await scrapeEventData(eventCode, teamNumber);
@@ -491,12 +741,13 @@ export async function syncTeamFullHistory(teamNumber: string): Promise<{
   _browser = originalBrowser;
 
   console.log(
-    `[BrowserScraper] Completed sync for ${teamNumber}: ${eventCodes.length} events, ${skillsCount} skills records, ${matchCount} match records`
+    `[BrowserScraper] Completed sync for ${teamNumber}: ${eventCodes.length} events, ${skillsCount} skills records, ${matchCount} match records, ${awardsCount} awards`
   );
   return {
     eventsFound: eventCodes.length,
     skillsRecords: skillsCount,
     matchRecords: matchCount,
+    awardsFound: awardsCount,
   };
 }
 

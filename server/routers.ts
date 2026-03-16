@@ -13,8 +13,8 @@ import {
 import { syncSkillsData, syncTeamMatchData } from "./scraper";
 import { syncTeamFullHistory } from "./browserScraper";
 import { getDb } from "./db";
-import { teams } from "../drizzle/schema";
-import { asc, sql } from "drizzle-orm";
+import { teams, teamAwards } from "../drizzle/schema";
+import { asc, sql, eq } from "drizzle-orm";
 
 export const appRouter = router({
   system: systemRouter,
@@ -58,6 +58,19 @@ export const appRouter = router({
       .input(z.object({ teamNumber: z.string().min(1).max(16) }))
       .mutation(async ({ input }) => {
         return syncTeamFullHistory(input.teamNumber);
+      }),
+
+    awards: publicProcedure
+      .input(z.object({ teamNumber: z.string().min(1).max(16) }))
+      .query(async ({ input }) => {
+        const db = await getDb();
+        if (!db) return [];
+        const rows = await db
+          .select()
+          .from(teamAwards)
+          .where(eq(teamAwards.teamNumber, input.teamNumber))
+          .orderBy(teamAwards.eventCode);
+        return rows;
       }),
 
     syncTopTeams: publicProcedure
