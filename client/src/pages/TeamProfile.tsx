@@ -1,4 +1,4 @@
-import { useState } from "react";
+import React, { useState } from "react";
 import { useParams, useLocation } from "wouter";
 import { Award } from "lucide-react";
 import {
@@ -109,9 +109,8 @@ function EventHistoryTable({ progress, teamNumber, navigate, onRefresh }: EventH
                 const isResyncing = resyncingEvent === p.eventCode;
 
                 return (
-                  <>
+                  <React.Fragment key={p.eventCode ?? `event-${i}`}>
                     <tr
-                      key={`row-${i}`}
                       className={`border-b border-border/50 hover:bg-secondary/20 transition-colors cursor-pointer ${
                         isExpanded ? "bg-secondary/30" : ""
                       }`}
@@ -283,9 +282,10 @@ function EventHistoryTable({ progress, teamNumber, navigate, onRefresh }: EventH
                         </td>
                       </tr>
                     )}
-                  </>
+                  </React.Fragment>
                 );
               })}
+
             </tbody>
           </table>
         </div>
