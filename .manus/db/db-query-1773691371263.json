@@ -1,0 +1,21 @@
+{
+  "query": "SELECT won, COUNT(*) as cnt FROM team_matches WHERE teamNumber = '81777A' GROUP BY won;\nSELECT allianceScore, opponentScore, won FROM team_matches WHERE teamNumber = '81777A' LIMIT 5;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2QKfi1Ndea9wXr8.root --database 4tK87PRTpvQf5EmMsJgnMM --execute SELECT won, COUNT(*) as cnt FROM team_matches WHERE teamNumber = '81777A' GROUP BY won;\nSELECT allianceScore, opponentScore, won FROM team_matches WHERE teamNumber = '81777A' LIMIT 5;",
+  "rows": [
+    {
+      "won": "0",
+      "cnt": "28"
+    }
+  ],
+  "messages": [
+    "allianceScore\topponentScore\twon",
+    "227\t227\t0",
+    "221\t221\t0",
+    "241\t241\t0",
+    "220\t220\t0",
+    "211\t211\t0"
+  ],
+  "stdout": "won\tcnt\n0\t28\nallianceScore\topponentScore\twon\n227\t227\t0\n221\t221\t0\n241\t241\t0\n220\t220\t0\n211\t211\t0\n",
+  "stderr": "",
+  "execution_time_ms": 134
+}

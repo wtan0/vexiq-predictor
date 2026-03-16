@@ -11,6 +11,10 @@ import {
   getWorldFinalsContenders,
 } from "./analytics";
 import { syncSkillsData, syncTeamMatchData } from "./scraper";
+import { syncTeamFullHistory } from "./browserScraper";
+import { getDb } from "./db";
+import { teams } from "../drizzle/schema";
+import { asc, sql } from "drizzle-orm";
 
 export const appRouter = router({
   system: systemRouter,
@@ -48,6 +52,44 @@ export const appRouter = router({
       .input(z.object({ teamNumber: z.string().min(1).max(16) }))
       .mutation(async ({ input }) => {
         return syncTeamMatchData(input.teamNumber);
+      }),
+
+    syncFullHistory: publicProcedure
+      .input(z.object({ teamNumber: z.string().min(1).max(16) }))
+      .mutation(async ({ input }) => {
+        return syncTeamFullHistory(input.teamNumber);
+      }),
+
+    syncTopTeams: publicProcedure
+      .input(z.object({ count: z.number().min(1).max(20).default(5) }))
+      .mutation(async ({ input }) => {
+        const db = await getDb();
+        if (!db) return { synced: 0, failed: 0, teams: [] };
+
+        // Get top teams by skills rank
+        const topTeams = await db
+          .select({ teamNumber: teams.teamNumber, skillsRank: teams.skillsRank })
+          .from(teams)
+          .where(sql`${teams.skillsScore} IS NOT NULL AND ${teams.skillsScore} > 0`)
+          .orderBy(asc(teams.skillsRank))
+          .limit(input.count);
+
+        let synced = 0;
+        let failed = 0;
+        const results: { teamNumber: string; status: string; events?: number }[] = [];
+
+        for (const team of topTeams) {
+          try {
+            const result = await syncTeamFullHistory(team.teamNumber);
+            synced++;
+            results.push({ teamNumber: team.teamNumber, status: "ok", events: result.eventsFound });
+          } catch (e: any) {
+            failed++;
+            results.push({ teamNumber: team.teamNumber, status: `error: ${e.message}` });
+          }
+        }
+
+        return { synced, failed, teams: results };
       }),
   }),
 

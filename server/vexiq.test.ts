@@ -125,24 +125,25 @@ describe("auth.logout", () => {
 });
 
 // ─── Pure function helpers (extracted from analytics.ts logic) ─────────────
+// These mirror the VEX IQ cooperative model (no win/loss, uses avgTeamworkScore)
 
 function computeScore(params: {
   skillsScore: number | null;
   driverScore: number | null;
   autoScore: number | null;
-  winRate: number;
+  winRate: number; // kept for compat but not used in VEX IQ model
   avgAllianceScore: number;
   totalMatches: number;
   bestEventRank: number | null;
 }): number {
-  const { skillsScore, driverScore, autoScore, winRate, avgAllianceScore, totalMatches, bestEventRank } = params;
+  const { skillsScore, driverScore, autoScore, avgAllianceScore, totalMatches, bestEventRank } = params;
 
+  // VEX IQ cooperative model: no win/loss rate
   const W_SKILLS = 0.35;
   const W_DRIVER = 0.15;
   const W_AUTO = 0.15;
-  const W_WINRATE = 0.20;
-  const W_AVG_SCORE = 0.10;
-  const W_RANK = 0.05;
+  const W_AVG_SCORE = 0.25; // Average teamwork match score (cooperative)
+  const W_RANK = 0.10;
 
   const MAX_SKILLS = 600;
   const MAX_DRIVER = 350;
@@ -152,16 +153,14 @@ function computeScore(params: {
   const skillsNorm = Math.min((skillsScore ?? 0) / MAX_SKILLS, 1);
   const driverNorm = Math.min((driverScore ?? 0) / MAX_DRIVER, 1);
   const autoNorm = Math.min((autoScore ?? 0) / MAX_AUTO, 1);
-  const winRateNorm = winRate / 100;
   const avgScoreNorm = Math.min(avgAllianceScore / MAX_AVG_SCORE, 1);
   const rankNorm = bestEventRank ? Math.max(0, 1 - (bestEventRank - 1) / 50) : 0;
-  const participationBonus = totalMatches > 0 ? Math.min(totalMatches / 20, 1) * 0.05 : 0;
+  const participationBonus = totalMatches > 0 ? Math.min(totalMatches / 30, 1) * 0.05 : 0;
 
   const score =
     (skillsNorm * W_SKILLS +
       driverNorm * W_DRIVER +
       autoNorm * W_AUTO +
-      winRateNorm * W_WINRATE +
       avgScoreNorm * W_AVG_SCORE +
       rankNorm * W_RANK +
       participationBonus) *
@@ -174,7 +173,8 @@ function computeHeadToHeadProbs(
   a: { driver: number; auto: number; winRate: number; rank: number; avgScore: number },
   b: { driver: number; auto: number; winRate: number; rank: number; avgScore: number }
 ): { probA: number; probB: number } {
-  const W = { driverSkills: 0.25, autoSkills: 0.20, matchWinRate: 0.25, rank: 0.15, avgScore: 0.15 };
+  // VEX IQ cooperative model: avgTeamworkScore replaces matchWinRate
+  const W = { driverSkills: 0.25, autoSkills: 0.20, avgTeamworkScore: 0.30, rank: 0.15, totalSkills: 0.10 };
   const MAX_DRIVER = 350;
   const MAX_AUTO = 280;
   const MAX_AVG = 350;
@@ -184,15 +184,16 @@ function computeHeadToHeadProbs(
   const driverB = b.driver / MAX_DRIVER;
   const autoA = a.auto / MAX_AUTO;
   const autoB = b.auto / MAX_AUTO;
-  const winRateA = a.winRate / 100;
-  const winRateB = b.winRate / 100;
   const rankA = Math.max(0, 1 - (a.rank - 1) / MAX_RANK);
   const rankB = Math.max(0, 1 - (b.rank - 1) / MAX_RANK);
   const avgA = Math.min(a.avgScore / MAX_AVG, 1);
   const avgB = Math.min(b.avgScore / MAX_AVG, 1);
+  // totalSkills approximated from driver + auto
+  const totalA = Math.min((a.driver + a.auto) / 600, 1);
+  const totalB = Math.min((b.driver + b.auto) / 600, 1);
 
-  const rawA = driverA * W.driverSkills + autoA * W.autoSkills + winRateA * W.matchWinRate + rankA * W.rank + avgA * W.avgScore;
-  const rawB = driverB * W.driverSkills + autoB * W.autoSkills + winRateB * W.matchWinRate + rankB * W.rank + avgB * W.avgScore;
+  const rawA = driverA * W.driverSkills + autoA * W.autoSkills + avgA * W.avgTeamworkScore + rankA * W.rank + totalA * W.totalSkills;
+  const rawB = driverB * W.driverSkills + autoB * W.autoSkills + avgB * W.avgTeamworkScore + rankB * W.rank + totalB * W.totalSkills;
 
   const total = rawA + rawB;
   const probA = total > 0 ? (rawA / total) * 100 : 50;

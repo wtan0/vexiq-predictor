@@ -1,0 +1,9 @@
+{
+  "query": "\n-- Delete old stale rows with null scores for 81777A\nDELETE FROM team_events \nWHERE teamNumber = '81777A' \nAND (skillsScore IS NULL OR eventName = 'www.robotevents.com' OR eventName = 'Unknown Event');\n\n-- Verify what's left\nSELECT id, eventCode, eventName, driverScore, autoScore, skillsScore, teamworkRank\nFROM team_events\nWHERE teamNumber = '81777A'\nORDER BY id;\n",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2QKfi1Ndea9wXr8.root --database 4tK87PRTpvQf5EmMsJgnMM --execute \n-- Delete old stale rows with null scores for 81777A\nDELETE FROM team_events \nWHERE teamNumber = '81777A' \nAND (skillsScore IS NULL OR eventName = 'www.robotevents.com' OR eventName = 'Unknown Event');\n\n-- Verify what's left\nSELECT id, eventCode, eventName, driverScore, autoScore, skillsScore, teamworkRank\nFROM team_events\nWHERE teamNumber = '81777A'\nORDER BY id;\n",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 82
+}

@@ -1,0 +1,8 @@
+{
+  "query": "\nSELECT te.event_code, te.event_name, te.event_date, te.driver_score, te.auto_score, te.skills_score, te.teamwork_rank, te.avg_teamwork_score\nFROM team_events te\nWHERE te.team_number = '81777A'\nORDER BY te.event_date;\n\nSELECT COUNT(*) as match_count, SUM(CASE WHEN won = 1 THEN 1 ELSE 0 END) as wins\nFROM team_matches\nWHERE team_number = '81777A';\n\nSELECT event_name, match_number, partner_team, alliance_score, opponent_score, won\nFROM team_matches\nWHERE team_number = '81777A'\nORDER BY event_name, match_number\nLIMIT 10;\n",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2QKfi1Ndea9wXr8.root --database 4tK87PRTpvQf5EmMsJgnMM --execute \nSELECT te.event_code, te.event_name, te.event_date, te.driver_score, te.auto_score, te.skills_score, te.teamwork_rank, te.avg_teamwork_score\nFROM team_events te\nWHERE te.team_number = '81777A'\nORDER BY te.event_date;\n\nSELECT COUNT(*) as match_count, SUM(CASE WHEN won = 1 THEN 1 ELSE 0 END) as wins\nFROM team_matches\nWHERE team_number = '81777A';\n\nSELECT event_name, match_number, partner_team, alliance_score, opponent_score, won\nFROM team_matches\nWHERE team_number = '81777A'\nORDER BY event_name, match_number\nLIMIT 10;\n",
+  "returncode": 1,
+  "logs": [
+    "ERROR 1054 (42S22) at line 2: Unknown column 'te.event_date' in 'order clause'"
+  ]
+}

@@ -2,8 +2,9 @@ import { useState } from "react";
 import { useLocation } from "wouter";
 import {
   Globe, Trophy, Medal, ChevronRight, Loader2, MapPin,
-  Building2, Zap, Target, TrendingUp, Filter, RefreshCw
+  Building2, Zap, Target, TrendingUp, Filter, RefreshCw, Download
 } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -63,6 +64,16 @@ export default function WorldFinals() {
     { topN },
     { staleTime: 5 * 60 * 1000 }
   );
+
+  const syncTop = trpc.teams.syncTopTeams.useMutation({
+    onSuccess: (data) => {
+      toast.success(`Synced ${data.synced} teams, ${data.failed} failed`, {
+        description: "Match history updated for top teams."
+      });
+      refetch();
+    },
+    onError: (e) => toast.error(`Sync failed: ${e.message}`),
+  });
 
   const filtered = (contenders ?? []).filter((c) => {
     const countryMatch = !filterCountry || (c.country ?? "").toLowerCase().includes(filterCountry.toLowerCase());
@@ -222,8 +233,23 @@ export default function WorldFinals() {
               variant="outline"
               onClick={() => refetch()}
               className="h-8 border-border hover:bg-secondary"
+              title="Refresh rankings"
             >
               <RefreshCw className="h-3.5 w-3.5" />
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => syncTop.mutate({ count: 5 })}
+              disabled={syncTop.isPending}
+              className="h-8 border-primary/40 text-primary hover:bg-primary/10"
+              title="Fetch match history for top 5 teams from RobotEvents"
+            >
+              {syncTop.isPending ? (
+                <><Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> Syncing…</>
+              ) : (
+                <><Download className="h-3.5 w-3.5 mr-1" /> Sync Top 5</>  
+              )}
             </Button>
           </div>
         </div>
@@ -249,7 +275,7 @@ export default function WorldFinals() {
                     <th className="text-right px-4 py-3 text-muted-foreground font-medium">Skills</th>
                     <th className="text-right px-4 py-3 text-muted-foreground font-medium hidden sm:table-cell">Driver</th>
                     <th className="text-right px-4 py-3 text-muted-foreground font-medium hidden sm:table-cell">Auto</th>
-                    <th className="text-right px-4 py-3 text-muted-foreground font-medium hidden lg:table-cell">Win Rate</th>
+                    <th className="text-right px-4 py-3 text-muted-foreground font-medium hidden lg:table-cell">Avg TW Score</th>
                     <th className="text-left px-4 py-3 text-muted-foreground font-medium min-w-[160px]">Win Probability</th>
                     <th className="w-8"></th>
                   </tr>
@@ -295,8 +321,8 @@ export default function WorldFinals() {
                       </td>
                       <td className="px-4 py-3 text-right hidden lg:table-cell">
                         {c.totalMatches > 0 ? (
-                          <span className={c.winRate >= 50 ? "text-green-400" : "text-muted-foreground"}>
-                            {c.winRate.toFixed(1)}%
+                          <span className="text-green-400">
+                            {c.winRate.toFixed(0)}
                           </span>
                         ) : (
                           <span className="text-muted-foreground">—</span>
@@ -321,10 +347,11 @@ export default function WorldFinals() {
           <p className="font-medium text-foreground mb-1">Prediction Methodology</p>
           <p>
             Win probabilities are computed using a weighted composite score: Skills Score (35%),
-            Driver Skills (15%), Autonomous Skills (15%), Match Win Rate (20%), Average Alliance Score (10%),
-            and Best Event Rank (5%). Scores are normalized and converted to relative probabilities
-            among the top {topN} teams. This is a statistical model based on available 2025-2026 season data
-            and does not account for robot improvements, alliance selection, or tournament-day performance.
+            Driver Skills (15%), Autonomous Skills (15%), Average Teamwork Match Score (25%),
+            and Best Event Rank (10%). VEX IQ teamwork matches are cooperative — both partner teams
+            receive the same score, so there is no win/loss metric. Scores are normalized and converted
+            to relative probabilities among the top {topN} teams. This is a statistical model based on
+            available 2025-2026 season data and does not account for robot improvements or tournament-day performance.
           </p>
         </div>
       </div>

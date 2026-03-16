@@ -154,16 +154,16 @@ export default function HeadToHead() {
           fullMark: 280,
         },
         {
-          subject: "Win Rate",
-          A: result.teamA.winRate,
-          B: result.teamB.winRate,
-          fullMark: 100,
-        },
-        {
-          subject: "Avg Score",
+          subject: "Avg TW Score",
           A: result.teamA.avgAllianceScore,
           B: result.teamB.avgAllianceScore,
           fullMark: 350,
+        },
+        {
+          subject: "Total Skills",
+          A: result.teamA.skillsScore ?? 0,
+          B: result.teamB.skillsScore ?? 0,
+          fullMark: 600,
         },
         {
           subject: "Composite",
@@ -193,12 +193,12 @@ export default function HeadToHead() {
           weight: result.factors.autoSkillsWeight,
         },
         {
-          label: "Match Win Rate",
+          label: "Avg Teamwork Score",
           icon: TrendingUp,
-          adv: result.breakdown.matchWinRateAdvantage,
-          valA: `${result.teamA.winRate.toFixed(1)}%`,
-          valB: `${result.teamB.winRate.toFixed(1)}%`,
-          weight: result.factors.matchWinRateWeight,
+          adv: result.breakdown.avgTeamworkScoreAdvantage,
+          valA: result.teamA.avgAllianceScore > 0 ? result.teamA.avgAllianceScore.toFixed(1) : "—",
+          valB: result.teamB.avgAllianceScore > 0 ? result.teamB.avgAllianceScore.toFixed(1) : "—",
+          weight: result.factors.avgTeamworkScoreWeight,
         },
         {
           label: "Skills Rank",
@@ -209,12 +209,12 @@ export default function HeadToHead() {
           weight: result.factors.rankWeight,
         },
         {
-          label: "Avg Match Score",
+          label: "Total Skills",
           icon: BarChart3,
-          adv: result.breakdown.avgScoreAdvantage,
-          valA: result.teamA.avgAllianceScore.toFixed(1),
-          valB: result.teamB.avgAllianceScore.toFixed(1),
-          weight: result.factors.avgScoreWeight,
+          adv: result.breakdown.totalSkillsAdvantage,
+          valA: result.teamA.skillsScore ?? "—",
+          valB: result.teamB.skillsScore ?? "—",
+          weight: result.factors.totalSkillsWeight,
         },
       ]
     : [];
@@ -468,8 +468,8 @@ export default function HeadToHead() {
                         Rank: <span className="text-foreground font-medium">#{team.skillsRank ?? "—"}</span>
                       </span>
                       <span className="text-muted-foreground">
-                        Win Rate: <span className="text-foreground font-medium">
-                          {team.totalMatches > 0 ? `${team.winRate.toFixed(1)}%` : "—"}
+                        Avg TW Score: <span className="text-foreground font-medium">
+                          {team.avgAllianceScore > 0 ? Math.round(team.avgAllianceScore) : "—"}
                         </span>
                       </span>
                     </div>

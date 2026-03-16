@@ -41,16 +41,16 @@ export interface HeadToHeadResult {
   breakdown: {
     driverSkillsAdvantage: "A" | "B" | "tie";
     autoSkillsAdvantage: "A" | "B" | "tie";
-    matchWinRateAdvantage: "A" | "B" | "tie";
+    avgTeamworkScoreAdvantage: "A" | "B" | "tie"; // Average teamwork match score
     rankAdvantage: "A" | "B" | "tie";
-    avgScoreAdvantage: "A" | "B" | "tie";
+    totalSkillsAdvantage: "A" | "B" | "tie"; // Combined skills total
   };
   factors: {
     driverSkillsWeight: number;
     autoSkillsWeight: number;
-    matchWinRateWeight: number;
+    avgTeamworkScoreWeight: number;
     rankWeight: number;
-    avgScoreWeight: number;
+    totalSkillsWeight: number;
   };
 }
 
@@ -61,10 +61,17 @@ export interface SeasonProgressPoint {
   autoScore: number | null;
   skillsScore: number | null;
   eventRank: number | null;
+  teamworkRank: number | null;
+  avgTeamworkScore: number | null;
   wpApSp: string | null;
-  matchWins: number;
-  matchLosses: number;
+  /** Average match score across all teamwork matches at this event */
+  avgMatchScore: number | null;
+  /** Best (highest) match score at this event */
+  bestMatchScore: number | null;
+  /** Total number of teamwork matches played */
   matchTotal: number;
+  /** Partner teams encountered at this event */
+  partnerTeams: string[];
 }
 
 export interface WorldFinalsContender {
@@ -139,7 +146,6 @@ export async function getTeamStats(teamNumber: string): Promise<TeamStats | null
     skillsScore: team.skillsScore,
     driverScore: team.driverScore,
     autoScore: team.autoScore,
-    winRate,
     avgAllianceScore,
     totalMatches,
     bestEventRank,
@@ -169,48 +175,46 @@ export async function getTeamStats(teamNumber: string): Promise<TeamStats | null
   };
 }
 
-/** Compute a composite performance score (0-1000) */
+/** Compute a composite performance score (0-1000) for VEX IQ */
 function computeCompositeScore(params: {
   skillsScore: number | null;
   driverScore: number | null;
   autoScore: number | null;
-  winRate: number;
-  avgAllianceScore: number;
+  avgAllianceScore: number; // Average teamwork match score (cooperative)
   totalMatches: number;
   bestEventRank: number | null;
 }): number {
-  const { skillsScore, driverScore, autoScore, winRate, avgAllianceScore, totalMatches, bestEventRank } = params;
+  const { skillsScore, driverScore, autoScore, avgAllianceScore, totalMatches, bestEventRank } = params;
 
-  // Weights for each component
-  const W_SKILLS = 0.35;
-  const W_DRIVER = 0.15;
-  const W_AUTO = 0.15;
-  const W_WINRATE = 0.20;
-  const W_AVG_SCORE = 0.10;
-  const W_RANK = 0.05;
+  // VEX IQ Weights: Skills score is the primary predictor.
+  // Teamwork (avg match score) is secondary since VEX IQ is cooperative.
+  // No win/loss rate - replaced by avg teamwork score.
+  const W_SKILLS = 0.35;     // Total skills score (driver + auto combined)
+  const W_DRIVER = 0.15;     // Driver skills component
+  const W_AUTO = 0.15;       // Autonomous skills component
+  const W_AVG_SCORE = 0.25;  // Average teamwork match score (cooperative)
+  const W_RANK = 0.10;       // Best event rank
 
-  // Normalize each component to 0-1 range based on known max values
+  // Normalize each component to 0-1 range based on known max values for 2025-2026 season
   const MAX_SKILLS = 600;
   const MAX_DRIVER = 350;
   const MAX_AUTO = 280;
-  const MAX_AVG_SCORE = 350;
+  const MAX_AVG_SCORE = 350; // Max avg teamwork match score
 
   const skillsNorm = Math.min((skillsScore ?? 0) / MAX_SKILLS, 1);
   const driverNorm = Math.min((driverScore ?? 0) / MAX_DRIVER, 1);
   const autoNorm = Math.min((autoScore ?? 0) / MAX_AUTO, 1);
-  const winRateNorm = winRate / 100;
   const avgScoreNorm = Math.min(avgAllianceScore / MAX_AVG_SCORE, 1);
-  // Rank: lower is better. Assume top 100 teams are world-class.
+  // Rank: lower is better. Assume top 50 teams are world-class.
   const rankNorm = bestEventRank ? Math.max(0, 1 - (bestEventRank - 1) / 50) : 0;
 
-  // Participation bonus: more matches = more reliable data
-  const participationBonus = totalMatches > 0 ? Math.min(totalMatches / 20, 1) * 0.05 : 0;
+  // Participation bonus: more matches = more reliable data (max 5%)
+  const participationBonus = totalMatches > 0 ? Math.min(totalMatches / 30, 1) * 0.05 : 0;
 
   const score =
     (skillsNorm * W_SKILLS +
       driverNorm * W_DRIVER +
       autoNorm * W_AUTO +
-      winRateNorm * W_WINRATE +
       avgScoreNorm * W_AVG_SCORE +
       rankNorm * W_RANK +
       participationBonus) *
@@ -231,45 +235,46 @@ export async function computeHeadToHead(
 
   if (!statsA || !statsB) return null;
 
-  // Factor weights
+  // Factor weights for VEX IQ (cooperative teamwork - no win/loss)
   const W = {
-    driverSkills: 0.25,
-    autoSkills: 0.20,
-    matchWinRate: 0.25,
-    rank: 0.15,
-    avgScore: 0.15,
+    driverSkills: 0.25,   // Driver skills score
+    autoSkills: 0.20,     // Autonomous skills score
+    avgTeamworkScore: 0.30, // Average teamwork match score (most important for cooperation)
+    rank: 0.15,           // Global skills rank
+    totalSkills: 0.10,    // Combined skills total
   };
 
   // Compute normalized scores per factor
   const MAX_DRIVER = 350;
   const MAX_AUTO = 280;
+  const MAX_SKILLS = 600;
 
   const driverA = (statsA.driverScore ?? 0) / MAX_DRIVER;
   const driverB = (statsB.driverScore ?? 0) / MAX_DRIVER;
   const autoA = (statsA.autoScore ?? 0) / MAX_AUTO;
   const autoB = (statsB.autoScore ?? 0) / MAX_AUTO;
-  const winRateA = statsA.winRate / 100;
-  const winRateB = statsB.winRate / 100;
   const rankA = statsA.skillsRank ? Math.max(0, 1 - (statsA.skillsRank - 1) / 6636) : 0;
   const rankB = statsB.skillsRank ? Math.max(0, 1 - (statsB.skillsRank - 1) / 6636) : 0;
   const MAX_AVG = 350;
   const avgA = Math.min(statsA.avgAllianceScore / MAX_AVG, 1);
   const avgB = Math.min(statsB.avgAllianceScore / MAX_AVG, 1);
+  const totalSkillsA = Math.min((statsA.skillsScore ?? 0) / MAX_SKILLS, 1);
+  const totalSkillsB = Math.min((statsB.skillsScore ?? 0) / MAX_SKILLS, 1);
 
   // Compute raw advantage scores
   const rawA =
     driverA * W.driverSkills +
     autoA * W.autoSkills +
-    winRateA * W.matchWinRate +
+    avgA * W.avgTeamworkScore +
     rankA * W.rank +
-    avgA * W.avgScore;
+    totalSkillsA * W.totalSkills;
 
   const rawB =
     driverB * W.driverSkills +
     autoB * W.autoSkills +
-    winRateB * W.matchWinRate +
+    avgB * W.avgTeamworkScore +
     rankB * W.rank +
-    avgB * W.avgScore;
+    totalSkillsB * W.totalSkills;
 
   // Convert to probability using softmax-like normalization
   const total = rawA + rawB;
@@ -289,16 +294,16 @@ export async function computeHeadToHead(
     breakdown: {
       driverSkillsAdvantage: advantage(driverA, driverB),
       autoSkillsAdvantage: advantage(autoA, autoB),
-      matchWinRateAdvantage: advantage(winRateA, winRateB),
+      avgTeamworkScoreAdvantage: advantage(avgA, avgB),
       rankAdvantage: advantage(rankA, rankB),
-      avgScoreAdvantage: advantage(avgA, avgB),
+      totalSkillsAdvantage: advantage(totalSkillsA, totalSkillsB),
     },
     factors: {
       driverSkillsWeight: W.driverSkills * 100,
       autoSkillsWeight: W.autoSkills * 100,
-      matchWinRateWeight: W.matchWinRate * 100,
+      avgTeamworkScoreWeight: W.avgTeamworkScore * 100,
       rankWeight: W.rank * 100,
-      avgScoreWeight: W.avgScore * 100,
+      totalSkillsWeight: W.totalSkills * 100,
     },
   };
 }
@@ -321,12 +326,17 @@ export async function getSeasonProgress(
     .from(teamMatches)
     .where(eq(teamMatches.teamNumber, teamNumber));
 
-  // Group matches by event
-  const matchesByEvent: Record<string, typeof matchRows> = {};
+  // Group matches by eventCode for accurate joining
+  const matchesByEventCode: Record<string, typeof matchRows> = {};
   for (const m of matchRows) {
-    const key = m.eventName;
-    if (!matchesByEvent[key]) matchesByEvent[key] = [];
-    matchesByEvent[key].push(m);
+    const key = m.eventCode ?? m.eventName;
+    if (!matchesByEventCode[key]) matchesByEventCode[key] = [];
+    matchesByEventCode[key].push(m);
+  }
+  // Also build a map of eventCode -> eventName from match records (more accurate)
+  const eventNameByCode: Record<string, string> = {};
+  for (const m of matchRows) {
+    if (m.eventCode && m.eventName) eventNameByCode[m.eventCode] = m.eventName;
   }
 
   // If we have no event records but have team skills data, create a synthetic timeline
@@ -350,10 +360,13 @@ export async function getSeasonProgress(
           autoScore: team.autoScore,
           skillsScore: team.skillsScore,
           eventRank: team.skillsRank,
+          teamworkRank: null,
+          avgTeamworkScore: null,
           wpApSp: null,
-          matchWins: 0,
-          matchLosses: 0,
+          avgMatchScore: null,
+          bestMatchScore: null,
           matchTotal: 0,
+          partnerTeams: [],
         });
       }
       return points;
@@ -362,21 +375,40 @@ export async function getSeasonProgress(
   }
 
   return eventRows.map((ev) => {
-    const evMatches = matchesByEvent[ev.eventName] ?? [];
-    const wins = evMatches.filter((m) => m.won === true).length;
-    const losses = evMatches.filter((m) => m.won === false).length;
+    const key = ev.eventCode ?? ev.eventName;
+    const evMatches = matchesByEventCode[key] ?? [];
+    // VEX IQ teamwork: cooperative matches, track average and best scores
+    const matchScores = evMatches
+      .map((m) => m.allianceScore ?? 0)
+      .filter((s) => s > 0);
+    const avgMatchScore = matchScores.length > 0
+      ? Math.round(matchScores.reduce((a, b) => a + b, 0) / matchScores.length)
+      : null;
+    const bestMatchScore = matchScores.length > 0 ? Math.max(...matchScores) : null;
+    const partnerTeams = Array.from(new Set(
+      evMatches.map((m) => m.partnerTeam).filter((t): t is string => !!t)
+    ));
+    // Use event name from match records if available, then from team_events, then eventCode as fallback
+    const displayName = (ev.eventCode && eventNameByCode[ev.eventCode] && eventNameByCode[ev.eventCode] !== 'Unknown Event')
+      ? eventNameByCode[ev.eventCode]
+      : (ev.eventName && ev.eventName !== 'Unknown Event')
+        ? ev.eventName
+        : (ev.eventCode ?? 'Unknown Event');
 
     return {
-      eventName: ev.eventName,
+      eventName: displayName,
       eventDate: ev.eventDate,
       driverScore: ev.driverScore,
       autoScore: ev.autoScore,
       skillsScore: ev.skillsScore,
       eventRank: ev.eventRank,
+      teamworkRank: ev.teamworkRank,
+      avgTeamworkScore: ev.avgTeamworkScore,
       wpApSp: ev.wpApSp,
-      matchWins: wins,
-      matchLosses: losses,
+      avgMatchScore,
+      bestMatchScore,
       matchTotal: evMatches.length,
+      partnerTeams,
     };
   });
 }
@@ -431,7 +463,6 @@ export async function getWorldFinalsContenders(
       skillsScore: team.skillsScore,
       driverScore: team.driverScore,
       autoScore: team.autoScore,
-      winRate,
       avgAllianceScore,
       totalMatches,
       bestEventRank,

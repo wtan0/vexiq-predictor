@@ -9,6 +9,7 @@ import {
   bigint,
   boolean,
   index,
+  uniqueIndex,
 } from "drizzle-orm/mysql-core";
 
 export const users = mysqlTable("users", {
@@ -65,9 +66,11 @@ export const teamEvents = mysqlTable(
   {
     id: int("id").autoincrement().primaryKey(),
     teamNumber: varchar("teamNumber", { length: 16 }).notNull(),
+    /** RobotEvents event code e.g. RE-VIQRC-25-0853 */
+    eventCode: varchar("eventCode", { length: 32 }),
     eventName: text("eventName").notNull(),
     eventDate: timestamp("eventDate"),
-    /** Rank at this specific event */
+    /** Skills rank at this specific event */
     eventRank: int("eventRank"),
     /** Driver skills score at this event */
     driverScore: int("driverScore"),
@@ -75,11 +78,18 @@ export const teamEvents = mysqlTable(
     autoScore: int("autoScore"),
     /** Combined skills score at this event */
     skillsScore: int("skillsScore"),
+    /** Teamwork match rank at this event */
+    teamworkRank: int("teamworkRank"),
+    /** Average teamwork score at this event */
+    avgTeamworkScore: float("avgTeamworkScore"),
     /** Win/Autonomous/Points record e.g. "5/2/1" */
     wpApSp: varchar("wpApSp", { length: 32 }),
     createdAt: timestamp("createdAt").defaultNow().notNull(),
   },
-  (t) => [index("idx_team_events_teamNumber").on(t.teamNumber)]
+  (t) => [
+    index("idx_team_events_teamNumber").on(t.teamNumber),
+    uniqueIndex("uniq_team_events_team_event").on(t.teamNumber, t.eventCode),
+  ]
 );
 
 export type TeamEvent = typeof teamEvents.$inferSelect;
@@ -91,6 +101,8 @@ export const teamMatches = mysqlTable(
   {
     id: int("id").autoincrement().primaryKey(),
     teamNumber: varchar("teamNumber", { length: 16 }).notNull(),
+    /** RobotEvents event code e.g. RE-VIQRC-25-0853 */
+    eventCode: varchar("eventCode", { length: 32 }),
     eventName: text("eventName").notNull(),
     matchName: varchar("matchName", { length: 64 }),
     matchDate: timestamp("matchDate"),
@@ -102,9 +114,14 @@ export const teamMatches = mysqlTable(
     opponentScore: int("opponentScore"),
     /** Whether this team's alliance won */
     won: boolean("won"),
+    /** Whether the match was a tie */
+    tied: boolean("tied"),
     createdAt: timestamp("createdAt").defaultNow().notNull(),
   },
-  (t) => [index("idx_team_matches_teamNumber").on(t.teamNumber)]
+  (t) => [
+    index("idx_team_matches_teamNumber").on(t.teamNumber),
+    index("idx_team_matches_eventCode").on(t.eventCode),
+  ]
 );
 
 export type TeamMatch = typeof teamMatches.$inferSelect;

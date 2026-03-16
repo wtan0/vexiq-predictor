@@ -1,7 +1,10 @@
+import { useState } from "react";
 import { useParams, useLocation } from "wouter";
 import {
   Trophy, MapPin, Building2, TrendingUp, Swords, ArrowLeft,
-  RefreshCw, Loader2, Target, Zap, Users, BarChart3
+  RefreshCw, Loader2, Target, Zap, Users, BarChart3,
+  Calendar, ChevronDown, ChevronUp, History, Star,
+  CheckCircle2, XCircle, MinusCircle, AlertCircle
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,26 +13,35 @@ import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import {
   LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid,
-  Tooltip, Legend, ResponsiveContainer, ReferenceLine
+  Tooltip, Legend, ResponsiveContainer, Area, AreaChart, ComposedChart
 } from "recharts";
+
+const CHART_GRID = "oklch(0.22 0.02 240)";
+const CHART_TICK = { fill: "oklch(0.60 0.015 240)", fontSize: 11 };
 
 export default function TeamProfile() {
   const { teamNumber } = useParams<{ teamNumber: string }>();
   const [, navigate] = useLocation();
+  const [expandedEvent, setExpandedEvent] = useState<string | null>(null);
 
-  const { data: stats, isLoading: statsLoading } = trpc.teams.detail.useQuery(
+  const { data: stats, isLoading: statsLoading, refetch: refetchStats } = trpc.teams.detail.useQuery(
     { teamNumber: teamNumber ?? "" },
     { enabled: !!teamNumber }
   );
 
-  const { data: progress, isLoading: progressLoading } = trpc.teams.seasonProgress.useQuery(
+  const { data: progress, isLoading: progressLoading, refetch: refetchProgress } = trpc.teams.seasonProgress.useQuery(
     { teamNumber: teamNumber ?? "" },
     { enabled: !!teamNumber }
   );
 
-  const syncMatch = trpc.teams.syncMatchData.useMutation({
+  const syncFull = trpc.teams.syncFullHistory.useMutation({
     onSuccess: (data) => {
-      toast.success(`Synced ${data.matchCount} matches from ${data.eventCount} events`);
+      toast.success(
+        `Loaded ${data.eventsFound} events, ${data.matchRecords} matches for ${teamNumber}`,
+        { description: "Season history updated. Charts refreshed." }
+      );
+      refetchStats();
+      refetchProgress();
     },
     onError: (e) => toast.error(`Sync failed: ${e.message}`),
   });
@@ -53,16 +65,21 @@ export default function TeamProfile() {
     );
   }
 
+  const hasEventData = (progress ?? []).length > 1 ||
+    ((progress ?? []).length === 1 && (progress![0].driverScore ?? 0) > 0);
+
   const chartData = (progress ?? []).map((p, i) => ({
-    name: p.eventName.length > 20 ? p.eventName.slice(0, 20) + "…" : p.eventName,
+    name: p.eventName.length > 18 ? p.eventName.slice(0, 18) + "…" : p.eventName,
     fullName: p.eventName,
     driver: p.driverScore ?? 0,
     auto: p.autoScore ?? 0,
-    total: p.skillsScore ?? (p.driverScore ?? 0) + (p.autoScore ?? 0),
+    total: p.skillsScore ?? ((p.driverScore ?? 0) + (p.autoScore ?? 0)),
     rank: p.eventRank,
-    wins: p.matchWins,
-    losses: p.matchLosses,
+    avgScore: p.avgMatchScore ?? 0,
+    bestScore: p.bestMatchScore ?? 0,
+    total_matches: p.matchTotal,
     date: p.eventDate ? new Date(p.eventDate).toLocaleDateString() : `Event ${i + 1}`,
+    wpApSp: p.wpApSp,
   }));
 
   const statCards = [
@@ -95,15 +112,15 @@ export default function TeamProfile() {
       bg: "bg-purple-400/10",
     },
     {
-      label: "Match Win Rate",
-      value: stats.totalMatches > 0 ? `${stats.winRate.toFixed(1)}%` : "—",
+      label: "Avg Match Score",
+      value: stats.avgAllianceScore > 0 ? Math.round(stats.avgAllianceScore) : "—",
       icon: TrendingUp,
       color: "text-green-400",
       bg: "bg-green-400/10",
     },
     {
       label: "Total Matches",
-      value: stats.totalMatches > 0 ? `${stats.wins}W / ${stats.losses}L` : "—",
+      value: stats.totalMatches > 0 ? stats.totalMatches : "—",
       icon: Users,
       color: "text-blue-400",
       bg: "bg-blue-400/10",
@@ -113,18 +130,42 @@ export default function TeamProfile() {
   const CustomTooltip = ({ active, payload, label }: any) => {
     if (!active || !payload?.length) return null;
     return (
-      <div className="bg-card border border-border rounded-lg p-3 shadow-xl text-sm">
-        <p className="font-semibold text-foreground mb-2">{payload[0]?.payload?.fullName || label}</p>
+      <div className="bg-card border border-border rounded-lg p-3 shadow-xl text-sm max-w-[220px]">
+        <p className="font-semibold text-foreground mb-2 text-xs leading-tight">
+          {payload[0]?.payload?.fullName || label}
+        </p>
+        {payload[0]?.payload?.date && (
+          <p className="text-xs text-muted-foreground mb-2">{payload[0].payload.date}</p>
+        )}
         {payload.map((p: any) => (
-          <div key={p.dataKey} className="flex items-center gap-2">
-            <div className="w-2 h-2 rounded-full" style={{ backgroundColor: p.color }} />
-            <span className="text-muted-foreground capitalize">{p.dataKey}:</span>
-            <span className="font-medium text-foreground">{p.value}</span>
+          <div key={p.dataKey} className="flex items-center gap-2 mb-1">
+            <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: p.color }} />
+            <span className="text-muted-foreground capitalize text-xs">{p.name ?? p.dataKey}:</span>
+            <span className="font-medium text-foreground text-xs ml-auto">{p.value}</span>
           </div>
         ))}
+        {payload[0]?.payload?.rank && (
+          <div className="mt-2 pt-2 border-t border-border text-xs text-muted-foreground">
+            Event Rank: #{payload[0].payload.rank}
+          </div>
+        )}
       </div>
     );
   };
+
+  // Compute consistency score: std deviation of total scores
+  const scores = chartData.map((d) => d.total).filter((s) => s > 0);
+  const avgScore = scores.length > 0 ? scores.reduce((a, b) => a + b, 0) / scores.length : 0;
+  const variance = scores.length > 1
+    ? scores.reduce((acc, s) => acc + Math.pow(s - avgScore, 2), 0) / scores.length
+    : 0;
+  const stdDev = Math.sqrt(variance);
+  const consistencyPct = avgScore > 0 ? Math.max(0, Math.round(100 - (stdDev / avgScore) * 100)) : 0;
+
+  // Trend: is the team improving?
+  const trend = scores.length >= 2
+    ? scores[scores.length - 1] > scores[0] ? "improving" : scores[scores.length - 1] < scores[0] ? "declining" : "stable"
+    : "unknown";
 
   return (
     <div className="min-h-screen py-10">
@@ -165,16 +206,20 @@ export default function TeamProfile() {
               )}
             </div>
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap">
             <Button
               variant="outline"
               size="sm"
-              onClick={() => syncMatch.mutate({ teamNumber: teamNumber! })}
-              disabled={syncMatch.isPending}
+              onClick={() => syncFull.mutate({ teamNumber: teamNumber! })}
+              disabled={syncFull.isPending}
               className="border-border hover:bg-secondary"
+              title="Fetch full event history from RobotEvents (uses browser scraper)"
             >
-              <RefreshCw className={`h-4 w-4 mr-2 ${syncMatch.isPending ? "animate-spin" : ""}`} />
-              Sync Matches
+              {syncFull.isPending ? (
+                <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Fetching History…</>
+              ) : (
+                <><History className="h-4 w-4 mr-2" /> Load History</>
+              )}
             </Button>
             <Button
               size="sm"
@@ -206,61 +251,126 @@ export default function TeamProfile() {
           ))}
         </div>
 
+        {/* Sync prompt if no event data */}
+        {syncFull.isPending && (
+          <Card className="bg-card border-border mb-6">
+            <CardContent className="py-8 text-center">
+              <Loader2 className="h-10 w-10 mx-auto mb-3 animate-spin text-primary" />
+              <p className="text-foreground font-medium mb-1">Fetching season history from RobotEvents…</p>
+              <p className="text-sm text-muted-foreground">
+                This may take 30–90 seconds as we scrape each event page. Please wait.
+              </p>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Season Progress Charts */}
         {progressLoading ? (
           <div className="flex items-center justify-center py-16">
             <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
           </div>
-        ) : chartData.length > 0 ? (
+        ) : hasEventData ? (
           <div className="space-y-6">
-            {/* Skills Score Over Time */}
+            {/* Consistency & Trend Banner */}
+            {scores.length >= 2 && (
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <Card className="bg-card border-border">
+                  <CardContent className="p-3 text-center">
+                    <p className="text-xs text-muted-foreground mb-1">Events Tracked</p>
+                    <p className="text-2xl font-bold text-foreground">{chartData.length}</p>
+                  </CardContent>
+                </Card>
+                <Card className="bg-card border-border">
+                  <CardContent className="p-3 text-center">
+                    <p className="text-xs text-muted-foreground mb-1">Avg Skills Score</p>
+                    <p className="text-2xl font-bold text-cyan-400">{Math.round(avgScore)}</p>
+                  </CardContent>
+                </Card>
+                <Card className="bg-card border-border">
+                  <CardContent className="p-3 text-center">
+                    <p className="text-xs text-muted-foreground mb-1">Consistency</p>
+                    <p className={`text-2xl font-bold ${consistencyPct >= 80 ? "text-green-400" : consistencyPct >= 60 ? "text-amber-400" : "text-red-400"}`}>
+                      {consistencyPct}%
+                    </p>
+                  </CardContent>
+                </Card>
+                <Card className="bg-card border-border">
+                  <CardContent className="p-3 text-center">
+                    <p className="text-xs text-muted-foreground mb-1">Season Trend</p>
+                    <p className={`text-lg font-bold capitalize ${trend === "improving" ? "text-green-400" : trend === "declining" ? "text-red-400" : "text-amber-400"}`}>
+                      {trend === "improving" ? "📈 Improving" : trend === "declining" ? "📉 Declining" : "➡️ Stable"}
+                    </p>
+                  </CardContent>
+                </Card>
+              </div>
+            )}
+
+            {/* Skills Score Over Time - Area Chart */}
             <Card className="bg-card border-border">
               <CardHeader>
                 <CardTitle className="text-base font-semibold flex items-center gap-2">
                   <TrendingUp className="h-4 w-4 text-primary" />
-                  Skills Score Progression
+                  Skills Score Progression — Full Season
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <ResponsiveContainer width="100%" height={280}>
-                  <LineChart data={chartData} margin={{ top: 5, right: 20, left: 0, bottom: 60 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.22 0.02 240)" />
+                <ResponsiveContainer width="100%" height={300}>
+                  <AreaChart data={chartData} margin={{ top: 5, right: 20, left: 0, bottom: 70 }}>
+                    <defs>
+                      <linearGradient id="gradTotal" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="oklch(0.60 0.22 25)" stopOpacity={0.3} />
+                        <stop offset="95%" stopColor="oklch(0.60 0.22 25)" stopOpacity={0} />
+                      </linearGradient>
+                      <linearGradient id="gradDriver" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="oklch(0.65 0.18 200)" stopOpacity={0.2} />
+                        <stop offset="95%" stopColor="oklch(0.65 0.18 200)" stopOpacity={0} />
+                      </linearGradient>
+                      <linearGradient id="gradAuto" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="oklch(0.65 0.18 280)" stopOpacity={0.2} />
+                        <stop offset="95%" stopColor="oklch(0.65 0.18 280)" stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke={CHART_GRID} />
                     <XAxis
                       dataKey="name"
-                      tick={{ fill: "oklch(0.60 0.015 240)", fontSize: 11 }}
-                      angle={-35}
+                      tick={CHART_TICK}
+                      angle={-40}
                       textAnchor="end"
-                      height={70}
+                      height={80}
+                      interval={0}
                     />
-                    <YAxis tick={{ fill: "oklch(0.60 0.015 240)", fontSize: 11 }} />
+                    <YAxis tick={CHART_TICK} />
                     <Tooltip content={<CustomTooltip />} />
                     <Legend wrapperStyle={{ color: "oklch(0.60 0.015 240)", fontSize: 12 }} />
-                    <Line
+                    <Area
                       type="monotone"
                       dataKey="total"
                       name="Total Skills"
                       stroke="oklch(0.60 0.22 25)"
-                      strokeWidth={2}
+                      strokeWidth={2.5}
+                      fill="url(#gradTotal)"
                       dot={{ fill: "oklch(0.60 0.22 25)", r: 4 }}
                       activeDot={{ r: 6 }}
                     />
-                    <Line
+                    <Area
                       type="monotone"
                       dataKey="driver"
                       name="Driver Skills"
                       stroke="oklch(0.65 0.18 200)"
                       strokeWidth={2}
-                      dot={{ fill: "oklch(0.65 0.18 200)", r: 4 }}
+                      fill="url(#gradDriver)"
+                      dot={{ fill: "oklch(0.65 0.18 200)", r: 3 }}
                     />
-                    <Line
+                    <Area
                       type="monotone"
                       dataKey="auto"
                       name="Auto Skills"
                       stroke="oklch(0.65 0.18 280)"
                       strokeWidth={2}
-                      dot={{ fill: "oklch(0.65 0.18 280)", r: 4 }}
+                      fill="url(#gradAuto)"
+                      dot={{ fill: "oklch(0.65 0.18 280)", r: 3 }}
                     />
-                  </LineChart>
+                  </AreaChart>
                 </ResponsiveContainer>
               </CardContent>
             </Card>
@@ -270,21 +380,22 @@ export default function TeamProfile() {
               <CardHeader>
                 <CardTitle className="text-base font-semibold flex items-center gap-2">
                   <BarChart3 className="h-4 w-4 text-cyan-400" />
-                  Driver vs Autonomous Skills Breakdown
+                  Driver vs Autonomous Skills — Per Event
                 </CardTitle>
               </CardHeader>
               <CardContent>
                 <ResponsiveContainer width="100%" height={260}>
-                  <BarChart data={chartData} margin={{ top: 5, right: 20, left: 0, bottom: 60 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.22 0.02 240)" />
+                  <BarChart data={chartData} margin={{ top: 5, right: 20, left: 0, bottom: 70 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke={CHART_GRID} />
                     <XAxis
                       dataKey="name"
-                      tick={{ fill: "oklch(0.60 0.015 240)", fontSize: 11 }}
-                      angle={-35}
+                      tick={CHART_TICK}
+                      angle={-40}
                       textAnchor="end"
-                      height={70}
+                      height={80}
+                      interval={0}
                     />
-                    <YAxis tick={{ fill: "oklch(0.60 0.015 240)", fontSize: 11 }} />
+                    <YAxis tick={CHART_TICK} />
                     <Tooltip content={<CustomTooltip />} />
                     <Legend wrapperStyle={{ color: "oklch(0.60 0.015 240)", fontSize: 12 }} />
                     <Bar dataKey="driver" name="Driver Skills" fill="oklch(0.65 0.18 200)" radius={[3, 3, 0, 0]} />
@@ -294,56 +405,198 @@ export default function TeamProfile() {
               </CardContent>
             </Card>
 
-            {/* Match Results */}
-            {chartData.some((d) => d.wins > 0 || d.losses > 0) && (
+            {/* Teamwork Match Scores by Event */}
+            {chartData.some((d) => d.total_matches > 0) && (
               <Card className="bg-card border-border">
                 <CardHeader>
                   <CardTitle className="text-base font-semibold flex items-center gap-2">
                     <Users className="h-4 w-4 text-green-400" />
-                    Team Match Results by Event
+                    Teamwork Match Scores — Per Event
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <ResponsiveContainer width="100%" height={240}>
-                    <BarChart data={chartData} margin={{ top: 5, right: 20, left: 0, bottom: 60 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.22 0.02 240)" />
+                  <ResponsiveContainer width="100%" height={260}>
+                    <ComposedChart data={chartData} margin={{ top: 5, right: 20, left: 0, bottom: 70 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke={CHART_GRID} />
                       <XAxis
                         dataKey="name"
-                        tick={{ fill: "oklch(0.60 0.015 240)", fontSize: 11 }}
-                        angle={-35}
+                        tick={CHART_TICK}
+                        angle={-40}
                         textAnchor="end"
-                        height={70}
+                        height={80}
+                        interval={0}
                       />
-                      <YAxis tick={{ fill: "oklch(0.60 0.015 240)", fontSize: 11 }} />
+                      <YAxis tick={CHART_TICK} />
                       <Tooltip content={<CustomTooltip />} />
                       <Legend wrapperStyle={{ color: "oklch(0.60 0.015 240)", fontSize: 12 }} />
-                      <Bar dataKey="wins" name="Wins" fill="oklch(0.70 0.18 140)" radius={[3, 3, 0, 0]} />
-                      <Bar dataKey="losses" name="Losses" fill="oklch(0.55 0.22 25)" radius={[3, 3, 0, 0]} />
-                    </BarChart>
+                      <Bar dataKey="bestScore" name="Best Match Score" fill="oklch(0.70 0.18 140)" radius={[3, 3, 0, 0]} opacity={0.6} />
+                      <Line
+                        type="monotone"
+                        dataKey="avgScore"
+                        name="Avg Match Score"
+                        stroke="oklch(0.65 0.22 140)"
+                        strokeWidth={2.5}
+                        dot={{ fill: "oklch(0.65 0.22 140)", r: 4 }}
+                        activeDot={{ r: 6 }}
+                      />
+                    </ComposedChart>
                   </ResponsiveContainer>
                 </CardContent>
               </Card>
             )}
+
+            {/* Event-by-Event History Table */}
+            <Card className="bg-card border-border">
+              <CardHeader>
+                <CardTitle className="text-base font-semibold flex items-center gap-2">
+                  <Calendar className="h-4 w-4 text-amber-400" />
+                  Event-by-Event History
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-0">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-border bg-secondary/30">
+                        <th className="text-left px-4 py-3 text-muted-foreground font-medium">Event</th>
+                        <th className="text-center px-3 py-3 text-muted-foreground font-medium">Date</th>
+                        <th className="text-center px-3 py-3 text-muted-foreground font-medium">Driver</th>
+                        <th className="text-center px-3 py-3 text-muted-foreground font-medium">Auto</th>
+                        <th className="text-center px-3 py-3 text-muted-foreground font-medium">Total</th>
+                        <th className="text-center px-3 py-3 text-muted-foreground font-medium">Skills Rank</th>
+                        <th className="text-center px-3 py-3 text-muted-foreground font-medium">TW Rank</th>
+                        <th className="text-center px-3 py-3 text-muted-foreground font-medium">Avg Match</th>
+                        <th className="text-center px-3 py-3 text-muted-foreground font-medium">Best Match</th>
+                        <th className="text-left px-3 py-3 text-muted-foreground font-medium">Partners</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(progress ?? []).map((p, i) => {
+                        const total = p.skillsScore ?? ((p.driverScore ?? 0) + (p.autoScore ?? 0));
+                        const prevTotal = i > 0
+                          ? ((progress ?? [])[i - 1].skillsScore ?? (((progress ?? [])[i - 1].driverScore ?? 0) + ((progress ?? [])[i - 1].autoScore ?? 0)))
+                          : null;
+                        const improved = prevTotal !== null && total > prevTotal;
+                        const declined = prevTotal !== null && total < prevTotal;
+
+                        return (
+                          <tr
+                            key={i}
+                            className="border-b border-border/50 hover:bg-secondary/20 transition-colors"
+                          >
+                            <td className="px-4 py-3">
+                              <div className="flex items-center gap-2">
+                                {improved && <TrendingUp className="h-3 w-3 text-green-400 flex-shrink-0" />}
+                                {declined && <TrendingUp className="h-3 w-3 text-red-400 flex-shrink-0 rotate-180" />}
+                                <span className="text-foreground font-medium truncate max-w-[180px]" title={p.eventName}>
+                                  {p.eventName}
+                                </span>
+                              </div>
+                            </td>
+                            <td className="px-3 py-3 text-center text-muted-foreground text-xs">
+                              {p.eventDate ? new Date(p.eventDate).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "—"}
+                            </td>
+                            <td className="px-3 py-3 text-center">
+                              <span className="text-cyan-400 font-mono font-medium">{p.driverScore ?? "—"}</span>
+                            </td>
+                            <td className="px-3 py-3 text-center">
+                              <span className="text-purple-400 font-mono font-medium">{p.autoScore ?? "—"}</span>
+                            </td>
+                            <td className="px-3 py-3 text-center">
+                              <span className={`font-mono font-bold ${improved ? "text-green-400" : declined ? "text-red-400" : "text-foreground"}`}>
+                                {total > 0 ? total : "—"}
+                              </span>
+                            </td>
+                            <td className="px-3 py-3 text-center">
+                              {p.eventRank ? (
+                                <Badge variant="outline" className={`text-xs font-mono ${p.eventRank <= 3 ? "border-amber-400/50 text-amber-400" : "border-border text-muted-foreground"}`}>
+                                  #{p.eventRank}
+                                </Badge>
+                              ) : (
+                                <span className="text-muted-foreground">—</span>
+                              )}
+                            </td>
+                            <td className="px-3 py-3 text-center">
+                              {p.teamworkRank ? (
+                                <Badge variant="outline" className={`text-xs font-mono ${p.teamworkRank <= 3 ? "border-green-400/50 text-green-400" : "border-border text-muted-foreground"}`}>
+                                  #{p.teamworkRank}
+                                </Badge>
+                              ) : (
+                                <span className="text-muted-foreground">—</span>
+                              )}
+                            </td>
+                            <td className="px-3 py-3 text-center">
+                              {p.matchTotal > 0 ? (
+                                <div className="flex flex-col items-center gap-0.5 text-xs">
+                                  <span className="text-green-400 font-medium">{p.avgMatchScore ?? '—'}</span>
+                                  <span className="text-muted-foreground">{p.matchTotal} matches</span>
+                                </div>
+                              ) : (
+                                <span className="text-muted-foreground text-xs">—</span>
+                              )}
+                            </td>
+                            <td className="px-3 py-3 text-center">
+                              {p.bestMatchScore ? (
+                                <span className="text-amber-400 font-mono font-medium text-xs">{p.bestMatchScore}</span>
+                              ) : (
+                                <span className="text-muted-foreground text-xs">—</span>
+                              )}
+                            </td>
+                            <td className="px-3 py-3">
+                              {p.partnerTeams && p.partnerTeams.length > 0 ? (
+                                <div className="flex flex-wrap gap-1">
+                                  {p.partnerTeams.slice(0, 3).map((pt) => (
+                                    <Badge
+                                      key={pt}
+                                      variant="outline"
+                                      className="text-xs border-border/60 text-muted-foreground hover:text-foreground cursor-pointer"
+                                      onClick={() => navigate(`/teams/${pt}`)}
+                                    >
+                                      {pt}
+                                    </Badge>
+                                  ))}
+                                  {p.partnerTeams.length > 3 && (
+                                    <Badge variant="outline" className="text-xs border-border/40 text-muted-foreground/60">
+                                      +{p.partnerTeams.length - 3}
+                                    </Badge>
+                                  )}
+                                </div>
+                              ) : (
+                                <span className="text-muted-foreground text-xs">—</span>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </CardContent>
+            </Card>
           </div>
-        ) : (
+        ) : !syncFull.isPending ? (
           <Card className="bg-card border-border">
             <CardContent className="py-16 text-center">
-              <TrendingUp className="h-12 w-12 mx-auto mb-4 text-muted-foreground/30" />
-              <p className="text-muted-foreground mb-2">No detailed event data available yet.</p>
-              <p className="text-sm text-muted-foreground mb-4">
-                Click "Sync Matches" to fetch this team's match history from RobotEvents.
+              <History className="h-12 w-12 mx-auto mb-4 text-muted-foreground/30" />
+              <p className="text-foreground font-medium mb-2">No season history loaded yet</p>
+              <p className="text-sm text-muted-foreground mb-2 max-w-md mx-auto">
+                Click <strong>Load History</strong> to fetch this team's complete 2025-2026 season data from RobotEvents —
+                including per-event skills scores, teamwork match results, and rankings.
+              </p>
+              <p className="text-xs text-muted-foreground mb-6 max-w-md mx-auto">
+                This uses a browser-based scraper to bypass Cloudflare. It may take 30–90 seconds depending on how many events the team attended.
               </p>
               <Button
-                variant="outline"
-                onClick={() => syncMatch.mutate({ teamNumber: teamNumber! })}
-                disabled={syncMatch.isPending}
+                onClick={() => syncFull.mutate({ teamNumber: teamNumber! })}
+                disabled={syncFull.isPending}
+                className="bg-primary hover:bg-primary/90"
               >
-                <RefreshCw className={`h-4 w-4 mr-2 ${syncMatch.isPending ? "animate-spin" : ""}`} />
-                Sync Match Data
+                <History className="h-4 w-4 mr-2" />
+                Load Season History
               </Button>
             </CardContent>
           </Card>
-        )}
+        ) : null}
       </div>
     </div>
   );

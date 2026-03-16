@@ -1,0 +1,145 @@
+{
+  "query": "SELECT eventCode, matchName, partnerTeam, allianceScore, opponentScore, won, tied FROM team_matches WHERE teamNumber = '81777A' ORDER BY eventCode, matchName LIMIT 15;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2QKfi1Ndea9wXr8.root --database 4tK87PRTpvQf5EmMsJgnMM --execute SELECT eventCode, matchName, partnerTeam, allianceScore, opponentScore, won, tied FROM team_matches WHERE teamNumber = '81777A' ORDER BY eventCode, matchName LIMIT 15;",
+  "rows": [
+    {
+      "eventCode": "RE-VIQRC-25-0805",
+      "matchName": "Match #1-8",
+      "partnerTeam": "95014X",
+      "allianceScore": "358",
+      "opponentScore": "358",
+      "won": "0",
+      "tied": "1"
+    },
+    {
+      "eventCode": "RE-VIQRC-25-0805",
+      "matchName": "TeamWork #112",
+      "partnerTeam": "44686A",
+      "allianceScore": "179",
+      "opponentScore": "179",
+      "won": "0",
+      "tied": "1"
+    },
+    {
+      "eventCode": "RE-VIQRC-25-0805",
+      "matchName": "TeamWork #24",
+      "partnerTeam": "17750A",
+      "allianceScore": "313",
+      "opponentScore": "313",
+      "won": "0",
+      "tied": "1"
+    },
+    {
+      "eventCode": "RE-VIQRC-25-0805",
+      "matchName": "TeamWork #3",
+      "partnerTeam": "81777C",
+      "allianceScore": "300",
+      "opponentScore": "300",
+      "won": "0",
+      "tied": "1"
+    },
+    {
+      "eventCode": "RE-VIQRC-25-0805",
+      "matchName": "TeamWork #54",
+      "partnerTeam": "95014X",
+      "allianceScore": "358",
+      "opponentScore": "358",
+      "won": "0",
+      "tied": "1"
+    },
+    {
+      "eventCode": "RE-VIQRC-25-0805",
+      "matchName": "TeamWork #72",
+      "partnerTeam": "23301A",
+      "allianceScore": "257",
+      "opponentScore": "257",
+      "won": "0",
+      "tied": "1"
+    },
+    {
+      "eventCode": "RE-VIQRC-25-0805",
+      "matchName": "TeamWork #93",
+      "partnerTeam": "16861B",
+      "allianceScore": "274",
+      "opponentScore": "274",
+      "won": "0",
+      "tied": "1"
+    },
+    {
+      "eventCode": "RE-VIQRC-25-0853",
+      "matchName": "Match #1-12",
+      "partnerTeam": "95133G",
+      "allianceScore": "271",
+      "opponentScore": "271",
+      "won": "0",
+      "tied": "1"
+    },
+    {
+      "eventCode": "RE-VIQRC-25-0853",
+      "matchName": "TeamWork #120",
+      "partnerTeam": "20260A",
+      "allianceScore": "282",
+      "opponentScore": "282",
+      "won": "0",
+      "tied": "1"
+    },
+    {
+      "eventCode": "RE-VIQRC-25-0853",
+      "matchName": "TeamWork #27",
+      "partnerTeam": "44263B",
+      "allianceScore": "221",
+      "opponentScore": "221",
+      "won": "0",
+      "tied": "1"
+    },
+    {
+      "eventCode": "RE-VIQRC-25-0853",
+      "matchName": "TeamWork #48",
+      "partnerTeam": "81777X",
+      "allianceScore": "241",
+      "opponentScore": "241",
+      "won": "0",
+      "tied": "1"
+    },
+    {
+      "eventCode": "RE-VIQRC-25-0853",
+      "matchName": "TeamWork #7",
+      "partnerTeam": "8940A",
+      "allianceScore": "227",
+      "opponentScore": "227",
+      "won": "0",
+      "tied": "1"
+    },
+    {
+      "eventCode": "RE-VIQRC-25-0853",
+      "matchName": "TeamWork #72",
+      "partnerTeam": "2675W",
+      "allianceScore": "220",
+      "opponentScore": "220",
+      "won": "0",
+      "tied": "1"
+    },
+    {
+      "eventCode": "RE-VIQRC-25-0853",
+      "matchName": "TeamWork #99",
+      "partnerTeam": "11450A",
+      "allianceScore": "211",
+      "opponentScore": "211",
+      "won": "0",
+      "tied": "1"
+    },
+    {
+      "eventCode": "RE-VIQRC-25-0855",
+      "matchName": "Match #1-12",
+      "partnerTeam": "81777W",
+      "allianceScore": "387",
+      "opponentScore": "387",
+      "won": "0",
+      "tied": "1"
+    }
+  ],
+  "messages": [],
+  "stdout": "eventCode\tmatchName\tpartnerTeam\tallianceScore\topponentScore\twon\ttied\nRE-VIQRC-25-0805\tMatch #1-8\t95014X\t358\t358\t0\t1\nRE-VIQRC-25-0805\tTeamWork #112\t44686A\t179\t179\t0\t1\nRE-VIQRC-25-0805\tTeamWork #24\t17750A\t313\t313\t0\t1\nRE-VIQRC-25-0805\tTeamWork #3\t81777C\t300\t300\t0\t1\nRE-VIQRC-25-0805\tTeamWork #54\t95014X\t358\t358\t0\t1\nRE-VIQRC-25-0805\tTeamWork #72\t23301A\t257\t257\t0\t1\nRE-VIQRC-25-0805\tTeamWork #93\t16861B\t274\t274\t0\t1\nRE-VIQRC-25-0853\tMatch #1-12\t95133G\t271\t271\t0\t1\nRE-VIQRC-25-0853\tTeamWork #120\t20260A\t282\t282\t0\t1\nRE-VIQRC-25-0853\tTeamWork #27\t44263B\t221\t221\t0\t1\nRE-VIQRC-25-0853\tTeamWork #48\t81777X\t241\t241\t0\t1\nRE-VIQRC-25-0853\tTeamWork #7\t8940A\t227\t227\t0\t1\nRE-VIQRC-25-0853\tTeamWork #72\t2675W\t220\t220\t0\t1\nRE-VIQRC-25-0853\tTeamWork #99\t11450A\t211\t211\t0\t1\nRE-VIQRC-25-0855\tMatch #1-12\t81777W\t387\t387\t0\t1\n",
+  "stderr": "",
+  "execution_time_ms": 55
+}

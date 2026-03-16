@@ -1,0 +1,60 @@
+{
+  "query": "SELECT teamNumber, eventCode, eventName, driverScore, autoScore, skillsScore, eventRank, teamworkRank FROM team_events WHERE teamNumber = '81777A' ORDER BY eventDate;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2QKfi1Ndea9wXr8.root --database 4tK87PRTpvQf5EmMsJgnMM --execute SELECT teamNumber, eventCode, eventName, driverScore, autoScore, skillsScore, eventRank, teamworkRank FROM team_events WHERE teamNumber = '81777A' ORDER BY eventDate;",
+  "rows": [
+    {
+      "teamNumber": "81777A",
+      "eventCode": "RE-VIQRC-25-0853",
+      "eventName": "Unknown Event",
+      "driverScore": "229",
+      "autoScore": "127",
+      "skillsScore": "356",
+      "eventRank": "1",
+      "teamworkRank": "1"
+    },
+    {
+      "teamNumber": "81777A",
+      "eventCode": "RE-VIQRC-25-1020",
+      "eventName": "Unknown Event",
+      "driverScore": "248",
+      "autoScore": "112",
+      "skillsScore": "360",
+      "eventRank": "1",
+      "teamworkRank": "2"
+    },
+    {
+      "teamNumber": "81777A",
+      "eventCode": "RE-VIQRC-25-0805",
+      "eventName": "Unknown Event",
+      "driverScore": "280",
+      "autoScore": "191",
+      "skillsScore": "471",
+      "eventRank": "1",
+      "teamworkRank": "1"
+    },
+    {
+      "teamNumber": "81777A",
+      "eventCode": "RE-VIQRC-25-0855",
+      "eventName": "Unknown Event",
+      "driverScore": "295",
+      "autoScore": "211",
+      "skillsScore": "506",
+      "eventRank": "1",
+      "teamworkRank": "1"
+    },
+    {
+      "teamNumber": "81777A",
+      "eventCode": "RE-VIQRC-25-9909",
+      "eventName": "Unknown Event",
+      "driverScore": "260",
+      "autoScore": "112",
+      "skillsScore": "372",
+      "eventRank": "2",
+      "teamworkRank": "NULL"
+    }
+  ],
+  "messages": [],
+  "stdout": "teamNumber\teventCode\teventName\tdriverScore\tautoScore\tskillsScore\teventRank\tteamworkRank\n81777A\tRE-VIQRC-25-0853\tUnknown Event\t229\t127\t356\t1\t1\n81777A\tRE-VIQRC-25-1020\tUnknown Event\t248\t112\t360\t1\t2\n81777A\tRE-VIQRC-25-0805\tUnknown Event\t280\t191\t471\t1\t1\n81777A\tRE-VIQRC-25-0855\tUnknown Event\t295\t211\t506\t1\t1\n81777A\tRE-VIQRC-25-9909\tUnknown Event\t260\t112\t372\t2\tNULL\n",
+  "stderr": "",
+  "execution_time_ms": 137
+}

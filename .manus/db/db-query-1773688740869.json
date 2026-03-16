@@ -1,0 +1,60 @@
+{
+  "query": "SELECT teamNumber, eventName, eventDate, eventRank, driverScore, autoScore, skillsScore, wpApSp FROM team_events WHERE teamNumber = '81777A' ORDER BY eventDate;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2QKfi1Ndea9wXr8.root --database 4tK87PRTpvQf5EmMsJgnMM --execute SELECT teamNumber, eventName, eventDate, eventRank, driverScore, autoScore, skillsScore, wpApSp FROM team_events WHERE teamNumber = '81777A' ORDER BY eventDate;",
+  "rows": [
+    {
+      "teamNumber": "81777A",
+      "eventName": "www.robotevents.com - Performing security verification",
+      "eventDate": "NULL",
+      "eventRank": "NULL",
+      "driverScore": "NULL",
+      "autoScore": "NULL",
+      "skillsScore": "NULL",
+      "wpApSp": "NULL"
+    },
+    {
+      "teamNumber": "81777A",
+      "eventName": "www.robotevents.com - Performing security verification",
+      "eventDate": "NULL",
+      "eventRank": "NULL",
+      "driverScore": "NULL",
+      "autoScore": "NULL",
+      "skillsScore": "NULL",
+      "wpApSp": "NULL"
+    },
+    {
+      "teamNumber": "81777A",
+      "eventName": "www.robotevents.com - Performing security verification",
+      "eventDate": "NULL",
+      "eventRank": "NULL",
+      "driverScore": "NULL",
+      "autoScore": "NULL",
+      "skillsScore": "NULL",
+      "wpApSp": "NULL"
+    },
+    {
+      "teamNumber": "81777A",
+      "eventName": "www.robotevents.com - Performing security verification",
+      "eventDate": "NULL",
+      "eventRank": "NULL",
+      "driverScore": "NULL",
+      "autoScore": "NULL",
+      "skillsScore": "NULL",
+      "wpApSp": "NULL"
+    },
+    {
+      "teamNumber": "81777A",
+      "eventName": "www.robotevents.com - Performing security verification",
+      "eventDate": "NULL",
+      "eventRank": "NULL",
+      "driverScore": "NULL",
+      "autoScore": "NULL",
+      "skillsScore": "NULL",
+      "wpApSp": "NULL"
+    }
+  ],
+  "messages": [],
+  "stdout": "teamNumber\teventName\teventDate\teventRank\tdriverScore\tautoScore\tskillsScore\twpApSp\n81777A\twww.robotevents.com - Performing security verification\tNULL\tNULL\tNULL\tNULL\tNULL\tNULL\n81777A\twww.robotevents.com - Performing security verification\tNULL\tNULL\tNULL\tNULL\tNULL\tNULL\n81777A\twww.robotevents.com - Performing security verification\tNULL\tNULL\tNULL\tNULL\tNULL\tNULL\n81777A\twww.robotevents.com - Performing security verification\tNULL\tNULL\tNULL\tNULL\tNULL\tNULL\n81777A\twww.robotevents.com - Performing security verification\tNULL\tNULL\tNULL\tNULL\tNULL\tNULL\n",
+  "stderr": "",
+  "execution_time_ms": 111
+}

@@ -27,3 +27,23 @@
 ## Testing
 - [x] Unit tests for statistical analysis engine
 - [x] Unit tests for tRPC procedures
+
+## Match Records (New Feature)
+- [x] Investigate RobotEvents team page HTML structure for match data
+- [x] Improve match scraper to reliably parse event names, match scores, partner teams, and outcomes
+- [x] Add batch match sync endpoint (sync top N teams by skills rank)
+- [x] Add per-team match sync trigger from team profile page
+- [x] Display match history table on team profile (event, match #, score, partner, result)
+- [x] Display season progress timeline chart (scores over time by event)
+- [x] Update head-to-head to use cooperative metrics (Avg TW Score, not win rate)
+- [ ] Add sync status indicator showing last sync time and match count
+
+## Frontend Improvements (Session 2)
+- [x] Replace wins/losses bar chart with Avg + Best Match Score chart (ComposedChart)
+- [x] Add Best Match Score column to event history table
+- [x] Add Partner Teams column to event history table (clickable badges)
+- [x] Update HeadToHead radar chart: replace Win Rate with Avg TW Score
+- [x] Update HeadToHead team cards: show Avg TW Score instead of Win Rate
+- [x] Update WorldFinals table: replace Win Rate column with Avg TW Score
+- [x] Add Sync Top 5 button on WorldFinals page
+- [x] Fix prediction methodology note to reflect cooperative VEX IQ model
