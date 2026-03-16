@@ -56,3 +56,8 @@
 - [x] Add tRPC endpoint for fetching team awards
 - [x] Display awards section on Team Profile (grouped by event, color-coded by qualification level)
 - [ ] Re-sync team 478M to populate all 7 events and awards (user action required)
+
+## Session 4 Features
+- [x] Add per-event re-sync button (refresh single event without full re-scrape)
+- [x] Add expandable match detail rows per event (show individual matches with partner, score, link)
+- [x] Add World Qualifier badge on team profile header

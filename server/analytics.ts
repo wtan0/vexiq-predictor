@@ -55,6 +55,7 @@ export interface HeadToHeadResult {
 }
 
 export interface SeasonProgressPoint {
+  eventCode: string | null;
   eventName: string;
   eventDate: Date | null;
   driverScore: number | null;
@@ -354,6 +355,7 @@ export async function getSeasonProgress(
 
       if (team.driverScore || team.autoScore) {
         points.push({
+          eventCode: null,
           eventName: "Best Skills Score",
           eventDate: team.driverScoreAt ?? team.autoScoreAt,
           driverScore: team.driverScore,
@@ -396,6 +398,7 @@ export async function getSeasonProgress(
         : (ev.eventCode ?? 'Unknown Event');
 
     return {
+      eventCode: ev.eventCode ?? null,
       eventName: displayName,
       eventDate: ev.eventDate,
       driverScore: ev.driverScore,

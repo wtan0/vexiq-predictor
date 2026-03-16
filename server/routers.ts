@@ -11,10 +11,11 @@ import {
   getWorldFinalsContenders,
 } from "./analytics";
 import { syncSkillsData, syncTeamMatchData } from "./scraper";
-import { syncTeamFullHistory } from "./browserScraper";
+import { syncTeamFullHistory, scrapeEventData } from "./browserScraper";
+import { teamMatches, teamEvents } from "../drizzle/schema";
 import { getDb } from "./db";
 import { teams, teamAwards } from "../drizzle/schema";
-import { asc, sql, eq } from "drizzle-orm";
+import { asc, sql, eq, and, desc } from "drizzle-orm";
 
 export const appRouter = router({
   system: systemRouter,
@@ -71,6 +72,98 @@ export const appRouter = router({
           .where(eq(teamAwards.teamNumber, input.teamNumber))
           .orderBy(teamAwards.eventCode);
         return rows;
+      }),
+
+    syncSingleEvent: publicProcedure
+      .input(z.object({
+        teamNumber: z.string().min(1).max(16),
+        eventCode: z.string().min(1).max(32),
+      }))
+      .mutation(async ({ input }) => {
+        const db = await getDb();
+        if (!db) throw new Error("Database not available");
+        const { skills, matches } = await scrapeEventData(input.eventCode, input.teamNumber);
+        // Upsert team_events row
+        if (skills || matches) {
+          const eventRow = {
+            teamNumber: input.teamNumber,
+            eventCode: input.eventCode,
+            eventName: skills?.eventName || matches?.eventName || input.eventCode,
+            eventDate: skills?.eventDate || matches?.eventDate || null,
+            eventRank: skills?.teamRank ?? null,
+            driverScore: skills?.driverScore ?? null,
+            autoScore: skills?.autoScore ?? null,
+            skillsScore: skills?.skillsScore ?? null,
+            teamworkRank: matches?.teamworkRank ?? null,
+            avgTeamworkScore: matches?.avgTeamworkScore ?? null,
+            wpApSp: null,
+          };
+          await db.insert(teamEvents).values(eventRow).onDuplicateKeyUpdate({
+            set: {
+              eventName: eventRow.eventName,
+              eventDate: eventRow.eventDate,
+              eventRank: eventRow.eventRank,
+              driverScore: eventRow.driverScore,
+              autoScore: eventRow.autoScore,
+              skillsScore: eventRow.skillsScore,
+              teamworkRank: eventRow.teamworkRank,
+              avgTeamworkScore: eventRow.avgTeamworkScore,
+            },
+          });
+        }
+        // Replace match records for this event
+        let matchCount = 0;
+        if (matches && matches.matches.length > 0) {
+          await db.delete(teamMatches).where(
+            and(eq(teamMatches.teamNumber, input.teamNumber), eq(teamMatches.eventCode, input.eventCode))
+          );
+          for (const m of matches.matches) {
+            const isRed = m.redTeam === input.teamNumber;
+            const isBlue = m.blueTeam === input.teamNumber;
+            if (!isRed && !isBlue) continue;
+            const partnerTeam = isRed ? m.blueTeam : m.redTeam;
+            const allianceScore = isRed ? m.redScore : m.blueScore;
+            await db.insert(teamMatches).values({
+              teamNumber: input.teamNumber,
+              eventCode: input.eventCode,
+              eventName: matches.eventName,
+              matchName: m.matchName,
+              matchDate: m.matchDate,
+              partnerTeam,
+              allianceScore,
+              opponentScore: null,
+              won: null,
+              tied: null,
+            });
+            matchCount++;
+          }
+        }
+        return {
+          eventCode: input.eventCode,
+          skillsFound: !!skills,
+          matchCount,
+          teamworkRank: matches?.teamworkRank ?? null,
+        };
+      }),
+
+    eventMatches: publicProcedure
+      .input(z.object({
+        teamNumber: z.string().min(1).max(16),
+        eventCode: z.string().min(1).max(32),
+      }))
+      .query(async ({ input }) => {
+        const db = await getDb();
+        if (!db) return [];
+        return db
+          .select()
+          .from(teamMatches)
+          .where(
+            and(
+              eq(teamMatches.teamNumber, input.teamNumber),
+              eq(teamMatches.eventCode, input.eventCode)
+            )
+          )
+          .orderBy(teamMatches.matchDate);
       }),
 
     syncTopTeams: publicProcedure

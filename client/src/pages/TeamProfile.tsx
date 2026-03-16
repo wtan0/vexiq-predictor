@@ -20,10 +20,283 @@ import {
 const CHART_GRID = "oklch(0.22 0.02 240)";
 const CHART_TICK = { fill: "oklch(0.60 0.015 240)", fontSize: 11 };
 
+// ─── EventHistoryTable sub-component ─────────────────────────────────────────
+interface EventHistoryTableProps {
+  progress: Array<{
+    eventCode: string | null;
+    eventName: string;
+    eventDate: Date | null;
+    driverScore: number | null;
+    autoScore: number | null;
+    skillsScore: number | null;
+    eventRank: number | null;
+    teamworkRank: number | null;
+    avgMatchScore: number | null;
+    bestMatchScore: number | null;
+    matchTotal: number;
+    partnerTeams: string[];
+    wpApSp: string | null;
+    avgTeamworkScore: number | null;
+  }>;
+  teamNumber: string;
+  navigate: (path: string) => void;
+  onRefresh: () => void;
+}
+
+function EventHistoryTable({ progress, teamNumber, navigate, onRefresh }: EventHistoryTableProps) {
+  const [expandedEvent, setExpandedEvent] = useState<string | null>(null);
+  const [resyncingEvent, setResyncingEvent] = useState<string | null>(null);
+
+  const syncSingle = trpc.teams.syncSingleEvent.useMutation({
+    onSuccess: (data) => {
+      toast.success(`Re-synced ${data.eventCode}: ${data.matchCount} matches`, {
+        description: data.skillsFound ? "Skills + match data updated." : "Match data updated.",
+      });
+      setResyncingEvent(null);
+      onRefresh();
+    },
+    onError: (e) => {
+      toast.error(`Re-sync failed: ${e.message}`);
+      setResyncingEvent(null);
+    },
+  });
+
+  // Fetch matches for expanded event
+  const { data: expandedMatches, isLoading: matchesLoading } = trpc.teams.eventMatches.useQuery(
+    { teamNumber, eventCode: expandedEvent ?? "" },
+    { enabled: !!expandedEvent }
+  );
+
+  return (
+    <Card className="bg-card border-border">
+      <CardHeader>
+        <CardTitle className="text-base font-semibold flex items-center gap-2">
+          <Calendar className="h-4 w-4 text-amber-400" />
+          Event-by-Event History
+          <span className="text-xs text-muted-foreground font-normal ml-1">
+            (click a row to expand matches)
+          </span>
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="p-0">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-border bg-secondary/30">
+                <th className="text-left px-4 py-3 text-muted-foreground font-medium w-6"></th>
+                <th className="text-left px-4 py-3 text-muted-foreground font-medium">Event</th>
+                <th className="text-center px-3 py-3 text-muted-foreground font-medium">Date</th>
+                <th className="text-center px-3 py-3 text-muted-foreground font-medium">Driver</th>
+                <th className="text-center px-3 py-3 text-muted-foreground font-medium">Auto</th>
+                <th className="text-center px-3 py-3 text-muted-foreground font-medium">Total</th>
+                <th className="text-center px-3 py-3 text-muted-foreground font-medium">Skills Rank</th>
+                <th className="text-center px-3 py-3 text-muted-foreground font-medium">TW Rank</th>
+                <th className="text-center px-3 py-3 text-muted-foreground font-medium">Avg Match</th>
+                <th className="text-center px-3 py-3 text-muted-foreground font-medium">Best Match</th>
+                <th className="text-left px-3 py-3 text-muted-foreground font-medium">Partners</th>
+                <th className="text-center px-3 py-3 text-muted-foreground font-medium w-10"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {progress.map((p, i) => {
+                const total = p.skillsScore ?? ((p.driverScore ?? 0) + (p.autoScore ?? 0));
+                const prevTotal = i > 0
+                  ? (progress[i - 1].skillsScore ?? ((progress[i - 1].driverScore ?? 0) + (progress[i - 1].autoScore ?? 0)))
+                  : null;
+                const improved = prevTotal !== null && total > prevTotal;
+                const declined = prevTotal !== null && total < prevTotal;
+                const isExpanded = expandedEvent === p.eventCode;
+                const isResyncing = resyncingEvent === p.eventCode;
+
+                return (
+                  <>
+                    <tr
+                      key={`row-${i}`}
+                      className={`border-b border-border/50 hover:bg-secondary/20 transition-colors cursor-pointer ${
+                        isExpanded ? "bg-secondary/30" : ""
+                      }`}
+                      onClick={() => p.eventCode && setExpandedEvent(isExpanded ? null : p.eventCode)}
+                    >
+                      <td className="px-2 py-3 text-center">
+                        {p.eventCode ? (
+                          isExpanded
+                            ? <ChevronUp className="h-3.5 w-3.5 text-muted-foreground" />
+                            : <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+                        ) : null}
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2">
+                          {improved && <TrendingUp className="h-3 w-3 text-green-400 flex-shrink-0" />}
+                          {declined && <TrendingUp className="h-3 w-3 text-red-400 flex-shrink-0 rotate-180" />}
+                          <span className="text-foreground font-medium truncate max-w-[180px]" title={p.eventName}>
+                            {p.eventName}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="px-3 py-3 text-center text-muted-foreground text-xs">
+                        {p.eventDate ? new Date(p.eventDate).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "—"}
+                      </td>
+                      <td className="px-3 py-3 text-center">
+                        <span className="text-cyan-400 font-mono font-medium">{p.driverScore ?? "—"}</span>
+                      </td>
+                      <td className="px-3 py-3 text-center">
+                        <span className="text-purple-400 font-mono font-medium">{p.autoScore ?? "—"}</span>
+                      </td>
+                      <td className="px-3 py-3 text-center">
+                        <span className={`font-mono font-bold ${improved ? "text-green-400" : declined ? "text-red-400" : "text-foreground"}`}>
+                          {total > 0 ? total : "—"}
+                        </span>
+                      </td>
+                      <td className="px-3 py-3 text-center">
+                        {p.eventRank ? (
+                          <Badge variant="outline" className={`text-xs font-mono ${p.eventRank <= 3 ? "border-amber-400/50 text-amber-400" : "border-border text-muted-foreground"}`}>
+                            #{p.eventRank}
+                          </Badge>
+                        ) : (
+                          <span className="text-muted-foreground">—</span>
+                        )}
+                      </td>
+                      <td className="px-3 py-3 text-center">
+                        {p.teamworkRank ? (
+                          <Badge variant="outline" className={`text-xs font-mono ${p.teamworkRank <= 3 ? "border-green-400/50 text-green-400" : "border-border text-muted-foreground"}`}>
+                            #{p.teamworkRank}
+                          </Badge>
+                        ) : (
+                          <span className="text-muted-foreground">—</span>
+                        )}
+                      </td>
+                      <td className="px-3 py-3 text-center">
+                        {p.matchTotal > 0 ? (
+                          <div className="flex flex-col items-center gap-0.5 text-xs">
+                            <span className="text-green-400 font-medium">{p.avgMatchScore ?? '—'}</span>
+                            <span className="text-muted-foreground">{p.matchTotal} matches</span>
+                          </div>
+                        ) : (
+                          <span className="text-muted-foreground text-xs">—</span>
+                        )}
+                      </td>
+                      <td className="px-3 py-3 text-center">
+                        {p.bestMatchScore ? (
+                          <span className="text-amber-400 font-mono font-medium text-xs">{p.bestMatchScore}</span>
+                        ) : (
+                          <span className="text-muted-foreground text-xs">—</span>
+                        )}
+                      </td>
+                      <td className="px-3 py-3">
+                        {p.partnerTeams && p.partnerTeams.length > 0 ? (
+                          <div className="flex flex-wrap gap-1" onClick={(e) => e.stopPropagation()}>
+                            {p.partnerTeams.slice(0, 3).map((pt) => (
+                              <Badge
+                                key={pt}
+                                variant="outline"
+                                className="text-xs border-border/60 text-muted-foreground hover:text-foreground cursor-pointer"
+                                onClick={() => navigate(`/teams/${pt}`)}
+                              >
+                                {pt}
+                              </Badge>
+                            ))}
+                            {p.partnerTeams.length > 3 && (
+                              <Badge variant="outline" className="text-xs border-border/40 text-muted-foreground/60">
+                                +{p.partnerTeams.length - 3}
+                              </Badge>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-muted-foreground text-xs">—</span>
+                        )}
+                      </td>
+                      <td className="px-2 py-3 text-center" onClick={(e) => e.stopPropagation()}>
+                        {p.eventCode && (
+                          <button
+                            title="Re-sync this event from RobotEvents"
+                            disabled={isResyncing || syncSingle.isPending}
+                            onClick={() => {
+                              setResyncingEvent(p.eventCode!);
+                              syncSingle.mutate({ teamNumber, eventCode: p.eventCode! });
+                            }}
+                            className="p-1 rounded hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors disabled:opacity-40"
+                          >
+                            {isResyncing
+                              ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                              : <RefreshCw className="h-3.5 w-3.5" />}
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                    {/* Expanded match detail rows */}
+                    {isExpanded && (
+                      <tr key={`expand-${i}`} className="border-b border-border/30 bg-background/40">
+                        <td colSpan={12} className="px-6 py-3">
+                          {matchesLoading ? (
+                            <div className="flex items-center gap-2 py-2 text-muted-foreground text-xs">
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading matches…
+                            </div>
+                          ) : expandedMatches && expandedMatches.length > 0 ? (
+                            <div className="overflow-x-auto">
+                              <table className="w-full text-xs">
+                                <thead>
+                                  <tr className="text-muted-foreground/70">
+                                    <th className="text-left py-1.5 pr-4 font-medium">Match</th>
+                                    <th className="text-left py-1.5 pr-4 font-medium">Date</th>
+                                    <th className="text-left py-1.5 pr-4 font-medium">Partner</th>
+                                    <th className="text-center py-1.5 pr-4 font-medium">Score</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {expandedMatches.map((m) => (
+                                    <tr key={m.id} className="border-t border-border/20 hover:bg-secondary/10">
+                                      <td className="py-1.5 pr-4 font-mono text-foreground/80">{m.matchName}</td>
+                                      <td className="py-1.5 pr-4 text-muted-foreground">
+                                        {m.matchDate ? new Date(m.matchDate).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "—"}
+                                      </td>
+                                      <td className="py-1.5 pr-4">
+                                        {m.partnerTeam ? (
+                                          <button
+                                            className="text-primary hover:underline font-mono"
+                                            onClick={() => navigate(`/teams/${m.partnerTeam}`)}
+                                          >
+                                            {m.partnerTeam}
+                                          </button>
+                                        ) : (
+                                          <span className="text-muted-foreground">—</span>
+                                        )}
+                                      </td>
+                                      <td className="py-1.5 pr-4 text-center">
+                                        <span className={`font-mono font-bold ${
+                                          (m.allianceScore ?? 0) >= 300 ? "text-amber-400" :
+                                          (m.allianceScore ?? 0) >= 200 ? "text-green-400" :
+                                          (m.allianceScore ?? 0) > 0 ? "text-foreground" : "text-muted-foreground"
+                                        }`}>
+                                          {m.allianceScore ?? "—"}
+                                        </span>
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          ) : (
+                            <p className="text-muted-foreground text-xs py-2">
+                              No match records stored for this event. Click <RefreshCw className="h-3 w-3 inline" /> to fetch from RobotEvents.
+                            </p>
+                          )}
+                        </td>
+                      </tr>
+                    )}
+                  </>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function TeamProfile() {
   const { teamNumber } = useParams<{ teamNumber: string }>();
   const [, navigate] = useLocation();
-  const [expandedEvent, setExpandedEvent] = useState<string | null>(null);
 
   const { data: stats, isLoading: statsLoading, refetch: refetchStats } = trpc.teams.detail.useQuery(
     { teamNumber: teamNumber ?? "" },
@@ -89,6 +362,11 @@ export default function TeamProfile() {
     date: p.eventDate ? new Date(p.eventDate).toLocaleDateString() : `Event ${i + 1}`,
     wpApSp: p.wpApSp,
   }));
+
+  // Compute qualifier badges from awards
+  const worldQualifier = awards?.some((a) => a.qualifiesFor?.includes("World"));
+  const regionQualifier = !worldQualifier && awards?.some((a) => a.qualifiesFor?.includes("Region"));
+  const worldQualEvents = awards?.filter((a) => a.qualifiesFor?.includes("World")).map((a) => a.eventName) ?? [];
 
   const statCards = [
     {
@@ -191,11 +469,29 @@ export default function TeamProfile() {
         {/* Team Header */}
         <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 mb-8">
           <div>
-            <div className="flex items-center gap-3 mb-2">
+            <div className="flex items-center gap-3 mb-2 flex-wrap">
               <h1 className="text-3xl font-bold">{stats.teamNumber}</h1>
               {stats.teamName && (
                 <Badge variant="outline" className="border-primary/40 text-primary bg-primary/10 text-base px-3 py-1">
                   {stats.teamName}
+                </Badge>
+              )}
+              {worldQualifier && (
+                <Badge
+                  className="bg-amber-500/20 text-amber-300 border border-amber-500/50 px-3 py-1 text-sm font-semibold animate-pulse"
+                  title={`World Championship qualifier via: ${worldQualEvents.join(", ")}`}
+                >
+                  <Star className="h-3.5 w-3.5 mr-1.5 fill-amber-400 text-amber-400" />
+                  World Qualifier
+                </Badge>
+              )}
+              {regionQualifier && (
+                <Badge
+                  className="bg-blue-500/20 text-blue-300 border border-blue-500/50 px-3 py-1 text-sm font-semibold"
+                  title="Region Championship qualifier"
+                >
+                  <Star className="h-3.5 w-3.5 mr-1.5 fill-blue-400 text-blue-400" />
+                  Region Qualifier
                 </Badge>
               )}
             </div>
@@ -454,133 +750,12 @@ export default function TeamProfile() {
             )}
 
             {/* Event-by-Event History Table */}
-            <Card className="bg-card border-border">
-              <CardHeader>
-                <CardTitle className="text-base font-semibold flex items-center gap-2">
-                  <Calendar className="h-4 w-4 text-amber-400" />
-                  Event-by-Event History
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="p-0">
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b border-border bg-secondary/30">
-                        <th className="text-left px-4 py-3 text-muted-foreground font-medium">Event</th>
-                        <th className="text-center px-3 py-3 text-muted-foreground font-medium">Date</th>
-                        <th className="text-center px-3 py-3 text-muted-foreground font-medium">Driver</th>
-                        <th className="text-center px-3 py-3 text-muted-foreground font-medium">Auto</th>
-                        <th className="text-center px-3 py-3 text-muted-foreground font-medium">Total</th>
-                        <th className="text-center px-3 py-3 text-muted-foreground font-medium">Skills Rank</th>
-                        <th className="text-center px-3 py-3 text-muted-foreground font-medium">TW Rank</th>
-                        <th className="text-center px-3 py-3 text-muted-foreground font-medium">Avg Match</th>
-                        <th className="text-center px-3 py-3 text-muted-foreground font-medium">Best Match</th>
-                        <th className="text-left px-3 py-3 text-muted-foreground font-medium">Partners</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {(progress ?? []).map((p, i) => {
-                        const total = p.skillsScore ?? ((p.driverScore ?? 0) + (p.autoScore ?? 0));
-                        const prevTotal = i > 0
-                          ? ((progress ?? [])[i - 1].skillsScore ?? (((progress ?? [])[i - 1].driverScore ?? 0) + ((progress ?? [])[i - 1].autoScore ?? 0)))
-                          : null;
-                        const improved = prevTotal !== null && total > prevTotal;
-                        const declined = prevTotal !== null && total < prevTotal;
-
-                        return (
-                          <tr
-                            key={i}
-                            className="border-b border-border/50 hover:bg-secondary/20 transition-colors"
-                          >
-                            <td className="px-4 py-3">
-                              <div className="flex items-center gap-2">
-                                {improved && <TrendingUp className="h-3 w-3 text-green-400 flex-shrink-0" />}
-                                {declined && <TrendingUp className="h-3 w-3 text-red-400 flex-shrink-0 rotate-180" />}
-                                <span className="text-foreground font-medium truncate max-w-[180px]" title={p.eventName}>
-                                  {p.eventName}
-                                </span>
-                              </div>
-                            </td>
-                            <td className="px-3 py-3 text-center text-muted-foreground text-xs">
-                              {p.eventDate ? new Date(p.eventDate).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "—"}
-                            </td>
-                            <td className="px-3 py-3 text-center">
-                              <span className="text-cyan-400 font-mono font-medium">{p.driverScore ?? "—"}</span>
-                            </td>
-                            <td className="px-3 py-3 text-center">
-                              <span className="text-purple-400 font-mono font-medium">{p.autoScore ?? "—"}</span>
-                            </td>
-                            <td className="px-3 py-3 text-center">
-                              <span className={`font-mono font-bold ${improved ? "text-green-400" : declined ? "text-red-400" : "text-foreground"}`}>
-                                {total > 0 ? total : "—"}
-                              </span>
-                            </td>
-                            <td className="px-3 py-3 text-center">
-                              {p.eventRank ? (
-                                <Badge variant="outline" className={`text-xs font-mono ${p.eventRank <= 3 ? "border-amber-400/50 text-amber-400" : "border-border text-muted-foreground"}`}>
-                                  #{p.eventRank}
-                                </Badge>
-                              ) : (
-                                <span className="text-muted-foreground">—</span>
-                              )}
-                            </td>
-                            <td className="px-3 py-3 text-center">
-                              {p.teamworkRank ? (
-                                <Badge variant="outline" className={`text-xs font-mono ${p.teamworkRank <= 3 ? "border-green-400/50 text-green-400" : "border-border text-muted-foreground"}`}>
-                                  #{p.teamworkRank}
-                                </Badge>
-                              ) : (
-                                <span className="text-muted-foreground">—</span>
-                              )}
-                            </td>
-                            <td className="px-3 py-3 text-center">
-                              {p.matchTotal > 0 ? (
-                                <div className="flex flex-col items-center gap-0.5 text-xs">
-                                  <span className="text-green-400 font-medium">{p.avgMatchScore ?? '—'}</span>
-                                  <span className="text-muted-foreground">{p.matchTotal} matches</span>
-                                </div>
-                              ) : (
-                                <span className="text-muted-foreground text-xs">—</span>
-                              )}
-                            </td>
-                            <td className="px-3 py-3 text-center">
-                              {p.bestMatchScore ? (
-                                <span className="text-amber-400 font-mono font-medium text-xs">{p.bestMatchScore}</span>
-                              ) : (
-                                <span className="text-muted-foreground text-xs">—</span>
-                              )}
-                            </td>
-                            <td className="px-3 py-3">
-                              {p.partnerTeams && p.partnerTeams.length > 0 ? (
-                                <div className="flex flex-wrap gap-1">
-                                  {p.partnerTeams.slice(0, 3).map((pt) => (
-                                    <Badge
-                                      key={pt}
-                                      variant="outline"
-                                      className="text-xs border-border/60 text-muted-foreground hover:text-foreground cursor-pointer"
-                                      onClick={() => navigate(`/teams/${pt}`)}
-                                    >
-                                      {pt}
-                                    </Badge>
-                                  ))}
-                                  {p.partnerTeams.length > 3 && (
-                                    <Badge variant="outline" className="text-xs border-border/40 text-muted-foreground/60">
-                                      +{p.partnerTeams.length - 3}
-                                    </Badge>
-                                  )}
-                                </div>
-                              ) : (
-                                <span className="text-muted-foreground text-xs">—</span>
-                              )}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              </CardContent>
-            </Card>
+            <EventHistoryTable
+              progress={progress ?? []}
+              teamNumber={teamNumber!}
+              navigate={navigate}
+              onRefresh={() => { refetchStats(); refetchProgress(); }}
+            />
           </div>
         ) : !syncFull.isPending ? (
           <Card className="bg-card border-border">
