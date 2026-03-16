@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useLocation } from "wouter";
 import {
   Globe, Trophy, Medal, ChevronRight, Loader2, MapPin,
-  Building2, Zap, Target, TrendingUp, Filter, RefreshCw, Download
+  Building2, Zap, Target, TrendingUp, Filter, RefreshCw, Download, Star
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -59,11 +59,18 @@ export default function WorldFinals() {
   const [topN, setTopN] = useState(50);
   const [filterCountry, setFilterCountry] = useState("");
   const [filterRegion, setFilterRegion] = useState("");
+  const [showQualifiersOnly, setShowQualifiersOnly] = useState(false);
 
   const { data: contenders, isLoading, refetch } = trpc.worldFinals.contenders.useQuery(
     { topN },
     { staleTime: 5 * 60 * 1000 }
   );
+
+  const { data: qualifierTeams } = trpc.worldFinals.qualifierTeams.useQuery(
+    undefined,
+    { staleTime: 5 * 60 * 1000 }
+  );
+  const qualifierSet = new Set(qualifierTeams ?? []);
 
   const syncTop = trpc.teams.syncTopTeams.useMutation({
     onSuccess: (data) => {
@@ -77,7 +84,8 @@ export default function WorldFinals() {
 
   const filtered = (contenders ?? []).filter((c) => {
     const countryMatch = !filterCountry || (c.country ?? "").toLowerCase().includes(filterCountry.toLowerCase());
-    return countryMatch;
+    const qualifierMatch = !showQualifiersOnly || qualifierSet.has(c.teamNumber);
+    return countryMatch && qualifierMatch;
   });
 
   const maxProb = filtered.length > 0 ? filtered[0].winProbability : 1;
@@ -203,7 +211,15 @@ export default function WorldFinals() {
 
         {/* Filters & Table */}
         <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
-          <h2 className="text-xl font-semibold">Full Rankings</h2>
+          <div className="flex items-center gap-3">
+            <h2 className="text-xl font-semibold">Full Rankings</h2>
+            {showQualifiersOnly && qualifierSet.size > 0 && (
+              <Badge className="bg-amber-500/20 text-amber-300 border border-amber-500/40 text-xs">
+                <Star className="h-3 w-3 mr-1 fill-amber-400 text-amber-400" />
+                {filtered.length} World Qualifiers
+              </Badge>
+            )}
+          </div>
           <div className="flex items-center gap-3 flex-wrap">
             <div className="relative">
               <Filter className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
@@ -228,6 +244,23 @@ export default function WorldFinals() {
                 </Button>
               ))}
             </div>
+            <Button
+              size="sm"
+              variant={showQualifiersOnly ? "default" : "outline"}
+              onClick={() => setShowQualifiersOnly(!showQualifiersOnly)}
+              className={`h-8 gap-1.5 ${
+                showQualifiersOnly
+                  ? "bg-amber-500/20 text-amber-300 border-amber-500/50 hover:bg-amber-500/30"
+                  : "border-amber-500/40 text-amber-400/80 hover:bg-amber-500/10 hover:text-amber-300"
+              }`}
+              title={showQualifiersOnly ? "Show all teams" : "Show only World Championship qualifiers"}
+            >
+              <Star className={`h-3.5 w-3.5 ${showQualifiersOnly ? "fill-amber-400" : ""}`} />
+              World Qualifiers
+              {qualifierSet.size > 0 && (
+                <span className="ml-1 text-xs opacity-70">({qualifierSet.size})</span>
+              )}
+            </Button>
             <Button
               size="sm"
               variant="outline"
@@ -297,7 +330,14 @@ export default function WorldFinals() {
                         </span>
                       </td>
                       <td className="px-4 py-3">
-                        <div className="font-semibold text-foreground">{c.teamNumber}</div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-semibold text-foreground">{c.teamNumber}</span>
+                          {qualifierSet.has(c.teamNumber) && (
+                            <span title="World Championship qualifier">
+                              <Star className="h-3 w-3 fill-amber-400 text-amber-400 flex-shrink-0" />
+                            </span>
+                          )}
+                        </div>
                         {c.teamName && (
                           <div className="text-xs text-muted-foreground truncate max-w-[140px]">{c.teamName}</div>
                         )}

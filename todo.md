@@ -61,3 +61,6 @@
 - [x] Add per-event re-sync button (refresh single event without full re-scrape)
 - [x] Add expandable match detail rows per event (show individual matches with partner, score, link)
 - [x] Add World Qualifier badge on team profile header
+
+## Session 5 Features
+- [x] Add World Qualifiers filter toggle on World Finals page (show only confirmed World Championship qualifier teams)

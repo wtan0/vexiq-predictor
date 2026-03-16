@@ -220,6 +220,17 @@ export const appRouter = router({
       .query(async ({ input }) => {
         return getWorldFinalsContenders(input.topN);
       }),
+
+    // Returns the set of team numbers that have a confirmed World Championship qualifier award
+    qualifierTeams: publicProcedure.query(async () => {
+      const db = await getDb();
+      if (!db) return [];
+      const rows = await db
+        .selectDistinct({ teamNumber: teamAwards.teamNumber })
+        .from(teamAwards)
+        .where(sql`${teamAwards.qualifiesFor} LIKE '%World%'`);
+      return rows.map((r) => r.teamNumber);
+    }),
   }),
 
   // ─── Data Sync ─────────────────────────────────────────────────────────────
