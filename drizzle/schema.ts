@@ -1,17 +1,18 @@
-import { int, mysqlEnum, mysqlTable, text, timestamp, varchar } from "drizzle-orm/mysql-core";
+import {
+  int,
+  mysqlEnum,
+  mysqlTable,
+  text,
+  timestamp,
+  varchar,
+  float,
+  bigint,
+  boolean,
+  index,
+} from "drizzle-orm/mysql-core";
 
-/**
- * Core user table backing auth flow.
- * Extend this file with additional tables as your product grows.
- * Columns use camelCase to match both database fields and generated types.
- */
 export const users = mysqlTable("users", {
-  /**
-   * Surrogate primary key. Auto-incremented numeric value managed by the database.
-   * Use this for relations between tables.
-   */
   id: int("id").autoincrement().primaryKey(),
-  /** Manus OAuth identifier (openId) returned from the OAuth callback. Unique per user. */
   openId: varchar("openId", { length: 64 }).notNull().unique(),
   name: text("name"),
   email: varchar("email", { length: 320 }),
@@ -25,4 +26,100 @@ export const users = mysqlTable("users", {
 export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
 
-// TODO: Add your tables here
+// ─── VEX IQ Domain Tables ───────────────────────────────────────────────────
+
+/** One row per team (Elementary, 2025-2026 season) */
+export const teams = mysqlTable(
+  "teams",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    teamNumber: varchar("teamNumber", { length: 16 }).notNull().unique(),
+    teamName: text("teamName"),
+    organization: text("organization"),
+    eventRegion: varchar("eventRegion", { length: 128 }),
+    country: varchar("country", { length: 128 }),
+    /** Overall skills rank (global) */
+    skillsRank: int("skillsRank"),
+    /** Combined skills score = driverScore + autoScore */
+    skillsScore: int("skillsScore"),
+    /** Best driver skills score */
+    driverScore: int("driverScore"),
+    /** Best autonomous coding skills score */
+    autoScore: int("autoScore"),
+    /** Timestamp of best driver score attempt */
+    driverScoreAt: timestamp("driverScoreAt"),
+    /** Timestamp of best auto score attempt */
+    autoScoreAt: timestamp("autoScoreAt"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  (t) => [index("idx_teams_teamNumber").on(t.teamNumber)]
+);
+
+export type Team = typeof teams.$inferSelect;
+export type InsertTeam = typeof teams.$inferInsert;
+
+/** One row per event a team participated in */
+export const teamEvents = mysqlTable(
+  "team_events",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    teamNumber: varchar("teamNumber", { length: 16 }).notNull(),
+    eventName: text("eventName").notNull(),
+    eventDate: timestamp("eventDate"),
+    /** Rank at this specific event */
+    eventRank: int("eventRank"),
+    /** Driver skills score at this event */
+    driverScore: int("driverScore"),
+    /** Auto skills score at this event */
+    autoScore: int("autoScore"),
+    /** Combined skills score at this event */
+    skillsScore: int("skillsScore"),
+    /** Win/Autonomous/Points record e.g. "5/2/1" */
+    wpApSp: varchar("wpApSp", { length: 32 }),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  (t) => [index("idx_team_events_teamNumber").on(t.teamNumber)]
+);
+
+export type TeamEvent = typeof teamEvents.$inferSelect;
+export type InsertTeamEvent = typeof teamEvents.$inferInsert;
+
+/** One row per match a team played */
+export const teamMatches = mysqlTable(
+  "team_matches",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    teamNumber: varchar("teamNumber", { length: 16 }).notNull(),
+    eventName: text("eventName").notNull(),
+    matchName: varchar("matchName", { length: 64 }),
+    matchDate: timestamp("matchDate"),
+    /** Partner team number */
+    partnerTeam: varchar("partnerTeam", { length: 16 }),
+    /** Score for this team's alliance */
+    allianceScore: int("allianceScore"),
+    /** Score for the opposing alliance */
+    opponentScore: int("opponentScore"),
+    /** Whether this team's alliance won */
+    won: boolean("won"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  (t) => [index("idx_team_matches_teamNumber").on(t.teamNumber)]
+);
+
+export type TeamMatch = typeof teamMatches.$inferSelect;
+export type InsertTeamMatch = typeof teamMatches.$inferInsert;
+
+/** Tracks when data was last synced */
+export const syncLog = mysqlTable("sync_log", {
+  id: int("id").autoincrement().primaryKey(),
+  syncType: varchar("syncType", { length: 64 }).notNull(),
+  status: mysqlEnum("status", ["running", "success", "error"]).notNull(),
+  recordsProcessed: int("recordsProcessed").default(0),
+  errorMessage: text("errorMessage"),
+  startedAt: timestamp("startedAt").defaultNow().notNull(),
+  completedAt: timestamp("completedAt"),
+});
+
+export type SyncLog = typeof syncLog.$inferSelect;
+export type InsertSyncLog = typeof syncLog.$inferInsert;
