@@ -110,3 +110,9 @@
 
 ## Session 14 Bug Fixes
 - [x] Fix partner team link 404: was navigating to /teams/X (plural) but route is /team/X (singular)
+
+## Session 15 Features
+- [x] Incorporate final round scores (Match #X-Y) into win probability model with higher weight than regular matches
+  - computeCompositeScore: W_FINAL_SCORE=0.22 > W_AVG_SCORE=0.12; added bestFinalistRank factor (0.07)
+  - computeHeadToHead: finalRoundScore weight=0.25 (highest); falls back to avgScore if no final data
+  - Both callers (getTeamStats, getWorldFinalsContenders) now extract Match #X-Y scores from DB

@@ -149,11 +149,26 @@ export async function getTeamStats(teamNumber: string): Promise<TeamStats | null
   const avgEventRank = ranks.length > 0 ? ranks.reduce((a, b) => a + b, 0) / ranks.length : null;
   const bestEventRank = ranks.length > 0 ? Math.min(...ranks) : null;
 
+  // Finalist ranks across events (lower = better)
+  const finalistRanks = eventRows.map((e) => e.finalistRank).filter((r): r is number => r !== null);
+  const bestFinalistRank = finalistRanks.length > 0 ? Math.min(...finalistRanks) : null;
+
+  // Final round scores: matches named "Match #X-Y"
+  const finalRoundScores = matchRows
+    .filter((m) => /^Match\s*#\d+-\d+/i.test(m.matchName ?? ""))
+    .map((m) => m.allianceScore ?? 0)
+    .filter((s) => s > 0);
+  const avgFinalRoundScore = finalRoundScores.length > 0
+    ? finalRoundScores.reduce((a, b) => a + b, 0) / finalRoundScores.length
+    : 0;
+
   const compositeScore = computeCompositeScore({
     skillsScore: team.skillsScore,
     driverScore: team.driverScore,
     autoScore: team.autoScore,
     avgAllianceScore,
+    avgFinalRoundScore,
+    bestFinalistRank,
     totalMatches,
     bestEventRank,
   });
@@ -188,32 +203,50 @@ function computeCompositeScore(params: {
   skillsScore: number | null;
   driverScore: number | null;
   autoScore: number | null;
-  avgAllianceScore: number; // Average teamwork match score (cooperative)
+  avgAllianceScore: number; // Average regular teamwork match score (cooperative)
+  avgFinalRoundScore: number; // Average final round (Match #X-Y) score — higher weight
+  bestFinalistRank: number | null; // Best finalist rank across all events (lower = better)
   totalMatches: number;
   bestEventRank: number | null;
 }): number {
-  const { skillsScore, driverScore, autoScore, avgAllianceScore, totalMatches, bestEventRank } = params;
+  const {
+    skillsScore, driverScore, autoScore,
+    avgAllianceScore, avgFinalRoundScore, bestFinalistRank,
+    totalMatches, bestEventRank,
+  } = params;
 
-  // VEX IQ Weights: Skills score is the primary predictor.
-  // Teamwork (avg match score) is secondary since VEX IQ is cooperative.
-  // No win/loss rate - replaced by avg teamwork score.
-  const W_SKILLS = 0.35;     // Total skills score (driver + auto combined)
-  const W_DRIVER = 0.15;     // Driver skills component
-  const W_AUTO = 0.15;       // Autonomous skills component
-  const W_AVG_SCORE = 0.25;  // Average teamwork match score (cooperative)
-  const W_RANK = 0.10;       // Best event rank
+  // VEX IQ Weights:
+  // Skills score is the primary predictor.
+  // Final round score (Match #X-Y) is the most important teamwork metric — it determines the event champion.
+  // Regular teamwork avg is secondary.
+  // Finalist rank captures playoff consistency across events.
+  const W_SKILLS = 0.30;        // Total skills score (driver + auto combined)
+  const W_DRIVER = 0.12;        // Driver skills component
+  const W_AUTO = 0.12;          // Autonomous skills component
+  const W_FINAL_SCORE = 0.22;   // Average final round (Match #X-Y) score — highest teamwork weight
+  const W_AVG_SCORE = 0.12;     // Average regular teamwork match score
+  const W_FINALIST_RANK = 0.07; // Best finalist rank across events (playoff consistency)
+  const W_RANK = 0.05;          // Best event skills rank
 
   // Normalize each component to 0-1 range based on known max values for 2025-2026 season
   const MAX_SKILLS = 600;
   const MAX_DRIVER = 350;
   const MAX_AUTO = 280;
-  const MAX_AVG_SCORE = 350; // Max avg teamwork match score
+  const MAX_SCORE = 420; // Max teamwork score (regular or final)
 
   const skillsNorm = Math.min((skillsScore ?? 0) / MAX_SKILLS, 1);
   const driverNorm = Math.min((driverScore ?? 0) / MAX_DRIVER, 1);
   const autoNorm = Math.min((autoScore ?? 0) / MAX_AUTO, 1);
-  const avgScoreNorm = Math.min(avgAllianceScore / MAX_AVG_SCORE, 1);
-  // Rank: lower is better. Assume top 50 teams are world-class.
+  const avgScoreNorm = Math.min(avgAllianceScore / MAX_SCORE, 1);
+  // Final round score: if no final round data, fall back to avg score (don't penalize teams without data)
+  const finalScoreNorm = avgFinalRoundScore > 0
+    ? Math.min(avgFinalRoundScore / MAX_SCORE, 1)
+    : avgScoreNorm; // fallback to regular avg if no final round data
+  // Finalist rank: lower is better. Top 3 = excellent, top 10 = good.
+  const finalistRankNorm = bestFinalistRank
+    ? Math.max(0, 1 - (bestFinalistRank - 1) / 10)
+    : 0;
+  // Event rank: lower is better. Assume top 50 teams are world-class.
   const rankNorm = bestEventRank ? Math.max(0, 1 - (bestEventRank - 1) / 50) : 0;
 
   // Participation bonus: more matches = more reliable data (max 5%)
@@ -223,7 +256,9 @@ function computeCompositeScore(params: {
     (skillsNorm * W_SKILLS +
       driverNorm * W_DRIVER +
       autoNorm * W_AUTO +
+      finalScoreNorm * W_FINAL_SCORE +
       avgScoreNorm * W_AVG_SCORE +
+      finalistRankNorm * W_FINALIST_RANK +
       rankNorm * W_RANK +
       participationBonus) *
     1000;
@@ -244,18 +279,21 @@ export async function computeHeadToHead(
   if (!statsA || !statsB) return null;
 
   // Factor weights for VEX IQ (cooperative teamwork - no win/loss)
+  // Final round score (Match #X-Y) is the decisive metric for head-to-head prediction.
   const W = {
-    driverSkills: 0.25,   // Driver skills score
-    autoSkills: 0.20,     // Autonomous skills score
-    avgTeamworkScore: 0.30, // Average teamwork match score (most important for cooperation)
-    rank: 0.15,           // Global skills rank
-    totalSkills: 0.10,    // Combined skills total
+    driverSkills: 0.20,    // Driver skills score
+    autoSkills: 0.15,      // Autonomous skills score
+    finalRoundScore: 0.25, // Final round (Match #X-Y) score — highest weight
+    avgTeamworkScore: 0.20, // Average regular teamwork match score
+    rank: 0.10,            // Global skills rank
+    totalSkills: 0.10,     // Combined skills total
   };
 
   // Compute normalized scores per factor
   const MAX_DRIVER = 350;
   const MAX_AUTO = 280;
   const MAX_SKILLS = 600;
+  const MAX_SCORE = 420;
 
   const driverA = (statsA.driverScore ?? 0) / MAX_DRIVER;
   const driverB = (statsB.driverScore ?? 0) / MAX_DRIVER;
@@ -263,16 +301,35 @@ export async function computeHeadToHead(
   const autoB = (statsB.autoScore ?? 0) / MAX_AUTO;
   const rankA = statsA.skillsRank ? Math.max(0, 1 - (statsA.skillsRank - 1) / 6636) : 0;
   const rankB = statsB.skillsRank ? Math.max(0, 1 - (statsB.skillsRank - 1) / 6636) : 0;
-  const MAX_AVG = 350;
-  const avgA = Math.min(statsA.avgAllianceScore / MAX_AVG, 1);
-  const avgB = Math.min(statsB.avgAllianceScore / MAX_AVG, 1);
+  const avgA = Math.min(statsA.avgAllianceScore / MAX_SCORE, 1);
+  const avgB = Math.min(statsB.avgAllianceScore / MAX_SCORE, 1);
   const totalSkillsA = Math.min((statsA.skillsScore ?? 0) / MAX_SKILLS, 1);
   const totalSkillsB = Math.min((statsB.skillsScore ?? 0) / MAX_SKILLS, 1);
+
+  // Final round scores from match records (Match #X-Y)
+  const getFinalRoundAvg = async (teamNumber: string): Promise<number> => {
+    const db2 = await getDb();
+    if (!db2) return 0;
+    const rows = await db2.select().from(teamMatches).where(eq(teamMatches.teamNumber, teamNumber));
+    const scores = rows
+      .filter((m) => /^Match\s*#\d+-\d+/i.test(m.matchName ?? ""))
+      .map((m) => m.allianceScore ?? 0)
+      .filter((s) => s > 0);
+    return scores.length > 0 ? scores.reduce((a, b) => a + b, 0) / scores.length : 0;
+  };
+  const [finalAvgA, finalAvgB] = await Promise.all([
+    getFinalRoundAvg(teamNumberA),
+    getFinalRoundAvg(teamNumberB),
+  ]);
+  // If no final round data, fall back to avg score
+  const finalA = finalAvgA > 0 ? Math.min(finalAvgA / MAX_SCORE, 1) : avgA;
+  const finalB = finalAvgB > 0 ? Math.min(finalAvgB / MAX_SCORE, 1) : avgB;
 
   // Compute raw advantage scores
   const rawA =
     driverA * W.driverSkills +
     autoA * W.autoSkills +
+    finalA * W.finalRoundScore +
     avgA * W.avgTeamworkScore +
     rankA * W.rank +
     totalSkillsA * W.totalSkills;
@@ -280,6 +337,7 @@ export async function computeHeadToHead(
   const rawB =
     driverB * W.driverSkills +
     autoB * W.autoSkills +
+    finalB * W.finalRoundScore +
     avgB * W.avgTeamworkScore +
     rankB * W.rank +
     totalSkillsB * W.totalSkills;
@@ -473,11 +531,28 @@ export async function getWorldFinalsContenders(
       .filter((r): r is number => r !== null);
     const bestEventRank = ranks.length > 0 ? Math.min(...ranks) : null;
 
+    // Finalist ranks across events (lower = better)
+    const finalistRanks = eventRows
+      .map((e) => e.finalistRank)
+      .filter((r): r is number => r !== null);
+    const bestFinalistRank = finalistRanks.length > 0 ? Math.min(...finalistRanks) : null;
+
+    // Final round scores: matches named "Match #X-Y"
+    const finalRoundScores = matchRows
+      .filter((m) => /^Match\s*#\d+-\d+/i.test(m.matchName ?? ""))
+      .map((m) => m.allianceScore ?? 0)
+      .filter((s) => s > 0);
+    const avgFinalRoundScore = finalRoundScores.length > 0
+      ? finalRoundScores.reduce((a, b) => a + b, 0) / finalRoundScores.length
+      : 0;
+
     const compositeScore = computeCompositeScore({
       skillsScore: team.skillsScore,
       driverScore: team.driverScore,
       autoScore: team.autoScore,
       avgAllianceScore,
+      avgFinalRoundScore,
+      bestFinalistRank,
       totalMatches,
       bestEventRank,
     });
