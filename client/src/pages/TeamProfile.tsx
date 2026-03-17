@@ -247,19 +247,31 @@ function EventHistoryTable({ progress, teamNumber, navigate, onRefresh }: EventH
                             <div className="flex items-center gap-2 py-2 text-muted-foreground text-xs">
                               <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading matches…
                             </div>
-                          ) : expandedMatches && expandedMatches.length > 0 ? (
+                          ) : expandedMatches && expandedMatches.length > 0 ? (() => {
+                              // Detect final round: the highest-numbered TeamWork match
+                              const matchNums = expandedMatches
+                                .map(m => { const n = m.matchName?.match(/#(\d+)/); return n ? parseInt(n[1]) : 0; })
+                                .filter(n => n > 0);
+                              const finalMatchNum = matchNums.length > 0 ? Math.max(...matchNums) : null;
+                              const isFinalMatch = (matchName: string | null) => {
+                                if (!finalMatchNum || !matchName) return false;
+                                const n = matchName.match(/#(\d+)/);
+                                return n ? parseInt(n[1]) === finalMatchNum : false;
+                              };
+                              return (
                             <div className="space-y-3">
                               {/* Sparkline chart */}
                               {expandedMatches.some((m) => (m.allianceScore ?? 0) > 0) && (
                                 <div>
                                   <p className="text-xs text-muted-foreground mb-1 flex items-center gap-1">
                                     <TrendingUp className="h-3 w-3" /> Match Score Trend
+                                    {finalMatchNum && <span className="ml-2 text-amber-400/80">(★ = Final Round #{finalMatchNum})</span>}
                                   </p>
                                   <ResponsiveContainer width="100%" height={72}>
                                     <AreaChart
                                       data={expandedMatches
                                         .filter((m) => (m.allianceScore ?? 0) > 0)
-                                        .map((m, idx) => ({ idx: idx + 1, score: m.allianceScore ?? 0, name: m.matchName }))}
+                                        .map((m, idx) => ({ idx: idx + 1, score: m.allianceScore ?? 0, name: m.matchName, isFinal: isFinalMatch(m.matchName) }))}
                                       margin={{ top: 4, right: 8, left: 0, bottom: 0 }}
                                     >
                                       <defs>
@@ -301,9 +313,16 @@ function EventHistoryTable({ progress, teamNumber, navigate, onRefresh }: EventH
                                   </tr>
                                 </thead>
                                 <tbody>
-                                  {expandedMatches.map((m) => (
-                                    <tr key={m.id} className="border-t border-border/20 hover:bg-secondary/10">
-                                      <td className="py-1.5 pr-4 font-mono text-foreground/80">{m.matchName}</td>
+                                  {expandedMatches.map((m) => {
+                                    const isFinal = isFinalMatch(m.matchName);
+                                    return (
+                                    <tr key={m.id} className={`border-t border-border/20 hover:bg-secondary/10 ${isFinal ? "bg-amber-400/5 border-amber-400/20" : ""}`}>
+                                      <td className="py-1.5 pr-4 font-mono">
+                                        <span className={isFinal ? "text-amber-400 font-bold" : "text-foreground/80"}>
+                                          {isFinal && "★ "}{m.matchName}
+                                        </span>
+                                        {isFinal && <span className="ml-1 text-amber-400/60 text-[10px]">Final</span>}
+                                      </td>
                                       <td className="py-1.5 pr-4 text-muted-foreground">
                                         {m.matchDate ? new Date(m.matchDate).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "—"}
                                       </td>
@@ -329,12 +348,14 @@ function EventHistoryTable({ progress, teamNumber, navigate, onRefresh }: EventH
                                         </span>
                                       </td>
                                     </tr>
-                                  ))}
+                                    );
+                                  })}
                                 </tbody>
                               </table>
                             </div>
                             </div>
-                          ) : (
+                              );
+                            })() : (
                             <p className="text-muted-foreground text-xs py-2">
                               No match records stored for this event. Click <RefreshCw className="h-3 w-3 inline" /> to fetch from RobotEvents.
                             </p>

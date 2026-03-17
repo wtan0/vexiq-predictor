@@ -93,3 +93,9 @@
 
 ## Session 10 Features
 - [x] Add sparkline chart in expanded event rows (match score trend per event)
+
+## Session 11 Bug Fixes
+- [ ] Scrape final teamwork ranking from the Rankings tab on each event page and display it in event history
+
+## Session 11 Features
+- [x] Highlight the final round match (highest-numbered TeamWork match) in expanded match rows and sparkline

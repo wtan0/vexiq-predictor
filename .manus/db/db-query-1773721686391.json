@@ -1,0 +1,162 @@
+{
+  "query": "SELECT teamNumber, eventCode, eventName, eventRank, teamworkRank, avgTeamworkScore FROM team_events WHERE teamNumber IN ('478M', '81777A') ORDER BY teamNumber, id LIMIT 20;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2QKfi1Ndea9wXr8.root --database 4tK87PRTpvQf5EmMsJgnMM --execute SELECT teamNumber, eventCode, eventName, eventRank, teamworkRank, avgTeamworkScore FROM team_events WHERE teamNumber IN ('478M', '81777A') ORDER BY teamNumber, id LIMIT 20;",
+  "rows": [
+    {
+      "teamNumber": "478M",
+      "eventCode": "RE-VIQRC-25-2227",
+      "eventName": "Elevate Tech VEX IQ Qualifying League Nights",
+      "eventRank": "6",
+      "teamworkRank": "3",
+      "avgTeamworkScore": "112"
+    },
+    {
+      "teamNumber": "478M",
+      "eventCode": "RE-VIQRC-25-2238",
+      "eventName": "Elevate Tech VEX IQ Tournament #1 : VIQRC, MS & ES Blended, In-Person with Digital Notebook Judging",
+      "eventRank": "8",
+      "teamworkRank": "17",
+      "avgTeamworkScore": "99"
+    },
+    {
+      "teamNumber": "478M",
+      "eventCode": "RE-VIQRC-25-9909",
+      "eventName": "Hyundai Presents SCORE Showdown at Great Wolf Lodge (ES) : Elementary A VEX IQ Signature Event",
+      "eventRank": "10",
+      "teamworkRank": "NULL",
+      "avgTeamworkScore": "NULL"
+    },
+    {
+      "teamNumber": "478M",
+      "eventCode": "RE-VIQRC-25-3469",
+      "eventName": "Magikid VEX IQ Tournament - ES",
+      "eventRank": "5",
+      "teamworkRank": "3",
+      "avgTeamworkScore": "192"
+    },
+    {
+      "teamNumber": "478M",
+      "eventCode": "RE-VIQRC-25-3185",
+      "eventName": "Evergreen Eagles #1 Tournament : VIQRC, Blended ES&MS, In-Person with Digital Notebook Judging",
+      "eventRank": "1",
+      "teamworkRank": "2",
+      "avgTeamworkScore": "253"
+    },
+    {
+      "teamNumber": "478M",
+      "eventCode": "RE-VIQRC-25-2241",
+      "eventName": "Elevate Tech VEX IQ Tournament #2 : VIQRC, MS & ES, In-Person with Digital Notebook Judging",
+      "eventRank": "2",
+      "teamworkRank": "1",
+      "avgTeamworkScore": "223"
+    },
+    {
+      "teamNumber": "478M",
+      "eventCode": "RE-VIQRC-25-3570",
+      "eventName": "Fairview VEX IQ Tournament - ES/MS",
+      "eventRank": "1",
+      "teamworkRank": "2",
+      "avgTeamworkScore": "261"
+    },
+    {
+      "teamNumber": "478M",
+      "eventCode": "RE-VIQRC-25-2243",
+      "eventName": "Elevate Tech VEX IQ Tournament #3 : VIQRC, MS & ES, In-Person with Digital Notebook Judging",
+      "eventRank": "1",
+      "teamworkRank": "14",
+      "avgTeamworkScore": "177"
+    },
+    {
+      "teamNumber": "478M",
+      "eventCode": "RE-VIQRC-25-3671",
+      "eventName": "2026 Washington VEX IQ Elementary Regional Championship : Hosted By Elevate Tech & Robotics",
+      "eventRank": "1",
+      "teamworkRank": "3",
+      "avgTeamworkScore": "273"
+    },
+    {
+      "teamNumber": "81777A",
+      "eventCode": "RE-VIQRC-25-0853",
+      "eventName": "Bay Area VIQRC Mix and Match : Tournament #2",
+      "eventRank": "1",
+      "teamworkRank": "1",
+      "avgTeamworkScore": "238"
+    },
+    {
+      "teamNumber": "81777A",
+      "eventCode": "RE-VIQRC-25-1020",
+      "eventName": "Dublin Robotics Club VEX IQ Tournament #1 : VIQRC, Blended ES&MS , In-Person with Remote Notebook & Judging",
+      "eventRank": "1",
+      "teamworkRank": "2",
+      "avgTeamworkScore": "242"
+    },
+    {
+      "teamNumber": "81777A",
+      "eventCode": "RE-VIQRC-25-0805",
+      "eventName": "Davis Youth Robotics VEX IQ Tournament #2 : ES&MS, In-Person, with Standard Judging",
+      "eventRank": "NULL",
+      "teamworkRank": "NULL",
+      "avgTeamworkScore": "NULL"
+    },
+    {
+      "teamNumber": "81777A",
+      "eventCode": "RE-VIQRC-25-0855",
+      "eventName": "Bay Area VIQRC Mix and Match : Tournament #4",
+      "eventRank": "NULL",
+      "teamworkRank": "NULL",
+      "avgTeamworkScore": "NULL"
+    },
+    {
+      "teamNumber": "81777A",
+      "eventCode": "RE-VIQRC-25-9909",
+      "eventName": "Hyundai Presents SCORE Showdown at Great Wolf Lodge (ES) : Elementary A VEX IQ Signature Event",
+      "eventRank": "NULL",
+      "teamworkRank": "NULL",
+      "avgTeamworkScore": "NULL"
+    },
+    {
+      "teamNumber": "81777A",
+      "eventCode": "RE-VIQRC-25-9968",
+      "eventName": "Fun in the Sun VEX IQ Robotics Competition Signature : Elementary School",
+      "eventRank": "NULL",
+      "teamworkRank": "NULL",
+      "avgTeamworkScore": "NULL"
+    },
+    {
+      "teamNumber": "81777A",
+      "eventCode": "RE-VIQRC-25-1252",
+      "eventName": "Robolabs Foundation VEX IQ Tournament #3 : VIQRC, Blended ES&MS , In-Person with Remote Notebook Judging and Interviews",
+      "eventRank": "NULL",
+      "teamworkRank": "NULL",
+      "avgTeamworkScore": "NULL"
+    },
+    {
+      "teamNumber": "81777A",
+      "eventCode": "RE-VIQRC-25-0141",
+      "eventName": "Kalahari Classic VIQRC Signature Event - Elementary : Elementary School",
+      "eventRank": "NULL",
+      "teamworkRank": "NULL",
+      "avgTeamworkScore": "NULL"
+    },
+    {
+      "teamNumber": "81777A",
+      "eventCode": "RE-VIQRC-25-1253",
+      "eventName": "Dublin Robotics Club VEX IQ Tournament #3 : VIQRC, Blended ES&MS , In-Person with Remote Notebook Judging & Interviews",
+      "eventRank": "NULL",
+      "teamworkRank": "NULL",
+      "avgTeamworkScore": "NULL"
+    },
+    {
+      "teamNumber": "81777A",
+      "eventCode": "RE-VIQRC-25-2253",
+      "eventName": "2026 Northern CA VEX IQ Regional Championship ES : Hosted By Placer Robotics @ the SMUD Museum of Science and Curiosity",
+      "eventRank": "1",
+      "teamworkRank": "2",
+      "avgTeamworkScore": "315"
+    }
+  ],
+  "messages": [],
+  "stdout": "teamNumber\teventCode\teventName\teventRank\tteamworkRank\tavgTeamworkScore\n478M\tRE-VIQRC-25-2227\tElevate Tech VEX IQ Qualifying League Nights\t6\t3\t112\n478M\tRE-VIQRC-25-2238\tElevate Tech VEX IQ Tournament #1 : VIQRC, MS & ES Blended, In-Person with Digital Notebook Judging\t8\t17\t99\n478M\tRE-VIQRC-25-9909\tHyundai Presents SCORE Showdown at Great Wolf Lodge (ES) : Elementary A VEX IQ Signature Event\t10\tNULL\tNULL\n478M\tRE-VIQRC-25-3469\tMagikid VEX IQ Tournament - ES\t5\t3\t192\n478M\tRE-VIQRC-25-3185\tEvergreen Eagles #1 Tournament : VIQRC, Blended ES&MS, In-Person with Digital Notebook Judging\t1\t2\t253\n478M\tRE-VIQRC-25-2241\tElevate Tech VEX IQ Tournament #2 : VIQRC, MS & ES, In-Person with Digital Notebook Judging\t2\t1\t223\n478M\tRE-VIQRC-25-3570\tFairview VEX IQ Tournament - ES/MS\t1\t2\t261\n478M\tRE-VIQRC-25-2243\tElevate Tech VEX IQ Tournament #3 : VIQRC, MS & ES, In-Person with Digital Notebook Judging\t1\t14\t177\n478M\tRE-VIQRC-25-3671\t2026 Washington VEX IQ Elementary Regional Championship : Hosted By Elevate Tech & Robotics\t1\t3\t273\n81777A\tRE-VIQRC-25-0853\tBay Area VIQRC Mix and Match : Tournament #2\t1\t1\t238\n81777A\tRE-VIQRC-25-1020\tDublin Robotics Club VEX IQ Tournament #1 : VIQRC, Blended ES&MS , In-Person with Remote Notebook & Judging\t1\t2\t242\n81777A\tRE-VIQRC-25-0805\tDavis Youth Robotics VEX IQ Tournament #2 : ES&MS, In-Person, with Standard Judging\tNULL\tNULL\tNULL\n81777A\tRE-VIQRC-25-0855\tBay Area VIQRC Mix and Match : Tournament #4\tNULL\tNULL\tNULL\n81777A\tRE-VIQRC-25-9909\tHyundai Presents SCORE Showdown at Great Wolf Lodge (ES) : Elementary A VEX IQ Signature Event\tNULL\tNULL\tNULL\n81777A\tRE-VIQRC-25-9968\tFun in the Sun VEX IQ Robotics Competition Signature : Elementary School\tNULL\tNULL\tNULL\n81777A\tRE-VIQRC-25-1252\tRobolabs Foundation VEX IQ Tournament #3 : VIQRC, Blended ES&MS , In-Person with Remote Notebook Judging and Interviews\tNULL\tNULL\tNULL\n81777A\tRE-VIQRC-25-0141\tKalahari Classic VIQRC Signature Event - Elementary : Elementary School\tNULL\tNULL\tNULL\n81777A\tRE-VIQRC-25-1253\tDublin Robotics Club VEX IQ Tournament #3 : VIQRC, Blended ES&MS , In-Person with Remote Notebook Judging & Interviews\tNULL\tNULL\tNULL\n81777A\tRE-VIQRC-25-2253\t2026 Northern CA VEX IQ Regional Championship ES : Hosted By Placer Robotics @ the SMUD Museum of Science and Curiosity\t1\t2\t315\n",
+  "stderr": "",
+  "execution_time_ms": 58
+}
