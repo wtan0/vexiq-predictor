@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useLocation } from "wouter";
-import { Trophy, Search, Swords, Globe, Home, Link2 } from "lucide-react";
+import { Trophy, Search, Swords, Globe, Home, Link2, Shield } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { Button } from "@/components/ui/button";
@@ -60,6 +60,20 @@ export default function NavBar() {
               <Link2 className="h-4 w-4" />
               <span className="text-sm font-medium">Invite</span>
             </Button>
+          )}
+          {user?.role === "admin" && (
+            <Link
+              href="/admin/users"
+              className={cn(
+                "flex items-center gap-1.5 rounded-md px-3 py-2 text-sm font-medium transition-colors",
+                location === "/admin/users"
+                  ? "bg-yellow-500/15 text-yellow-500"
+                  : "text-muted-foreground hover:text-foreground hover:bg-secondary"
+              )}
+            >
+              <Shield className="h-4 w-4" />
+              Admin
+            </Link>
           )}
         </nav>
 

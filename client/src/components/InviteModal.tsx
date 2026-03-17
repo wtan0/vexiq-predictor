@@ -21,6 +21,9 @@ import {
   Users,
   Clock,
   RefreshCw,
+  ChevronDown,
+  ChevronRight,
+  UserCheck,
 } from "lucide-react";
 
 interface InviteModalProps {
@@ -33,14 +36,72 @@ function formatDate(d: Date | null | undefined) {
   return new Date(d).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
 }
 
+function formatRelative(d: Date | null | undefined) {
+  if (!d) return null;
+  const diff = Date.now() - new Date(d).getTime();
+  const mins = Math.floor(diff / 60_000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  const days = Math.floor(hrs / 24);
+  return `${days}d ago`;
+}
+
 function getInviteUrl(token: string) {
   return `${window.location.origin}/invite/${token}`;
+}
+
+function getInitials(name: string | null | undefined): string {
+  if (!name) return "?";
+  return name
+    .split(" ")
+    .map((w) => w[0])
+    .join("")
+    .toUpperCase()
+    .slice(0, 2);
+}
+
+/** Sub-component: shows accepted-by list for one invite, lazily fetched on expand */
+function AcceptedByList({ token }: { token: string }) {
+  const { data, isLoading } = trpc.invites.acceptedBy.useQuery({ token });
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center gap-1.5 py-1 pl-1">
+        <RefreshCw className="h-3 w-3 animate-spin text-muted-foreground" />
+        <span className="text-xs text-muted-foreground">Loading…</span>
+      </div>
+    );
+  }
+
+  if (!data || data.length === 0) {
+    return (
+      <p className="text-xs text-muted-foreground py-1 pl-1 italic">No one has accepted this link yet.</p>
+    );
+  }
+
+  return (
+    <div className="space-y-1.5 pt-1">
+      {data.map((u) => (
+        <div key={u.openId} className="flex items-center gap-2">
+          {/* Avatar circle */}
+          <div className="h-6 w-6 rounded-full bg-primary/20 flex items-center justify-center flex-shrink-0">
+            <span className="text-[10px] font-bold text-primary">{getInitials(u.name)}</span>
+          </div>
+          <span className="text-xs text-foreground flex-1 truncate">{u.name ?? "Anonymous"}</span>
+          <span className="text-xs text-muted-foreground flex-shrink-0">{formatRelative(u.acceptedAt)}</span>
+        </div>
+      ))}
+    </div>
+  );
 }
 
 export function InviteModal({ open, onClose }: InviteModalProps) {
   const [label, setLabel] = useState("");
   const [expiresInDays, setExpiresInDays] = useState<number | "">("");
   const [copiedToken, setCopiedToken] = useState<string | null>(null);
+  const [expandedTokens, setExpandedTokens] = useState<Set<string>>(new Set());
 
   const utils = trpc.useUtils();
 
@@ -56,7 +117,6 @@ export function InviteModal({ open, onClose }: InviteModalProps) {
       setLabel("");
       setExpiresInDays("");
       utils.invites.list.invalidate();
-      // Auto-copy the new link
       copyToClipboard(token);
     },
     onError: (e) => toast.error(`Failed to create invite: ${e.message}`),
@@ -74,10 +134,17 @@ export function InviteModal({ open, onClose }: InviteModalProps) {
     const url = getInviteUrl(token);
     navigator.clipboard.writeText(url).then(() => {
       setCopiedToken(token);
-      toast.success("Link copied to clipboard!", {
-        description: url,
-      });
+      toast.success("Link copied to clipboard!", { description: url });
       setTimeout(() => setCopiedToken(null), 2500);
+    });
+  };
+
+  const toggleExpanded = (token: string) => {
+    setExpandedTokens((prev) => {
+      const next = new Set(prev);
+      if (next.has(token)) next.delete(token);
+      else next.add(token);
+      return next;
     });
   };
 
@@ -167,57 +234,87 @@ export function InviteModal({ open, onClose }: InviteModalProps) {
               const url = getInviteUrl(inv.token);
               const isCopied = copiedToken === inv.token;
               const isExpired = inv.expiresAt && new Date(inv.expiresAt) < new Date();
+              const isExpanded = expandedTokens.has(inv.token);
+
               return (
                 <div
                   key={inv.id}
-                  className="flex items-start gap-2 p-3 rounded-lg border border-border bg-background/30"
+                  className="rounded-lg border border-border bg-background/30 overflow-hidden"
                 >
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap mb-1">
-                      {inv.label && (
-                        <span className="text-xs font-medium text-foreground">{inv.label}</span>
-                      )}
-                      <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                        <Users className="h-3 w-3" />
-                        {inv.useCount} {inv.useCount === 1 ? "use" : "uses"}
-                      </span>
-                      {inv.expiresAt && (
-                        <span className={`flex items-center gap-1 text-xs ${isExpired ? "text-destructive" : "text-muted-foreground"}`}>
-                          <Clock className="h-3 w-3" />
-                          {isExpired ? "Expired" : `Expires ${formatDate(inv.expiresAt)}`}
+                  {/* Main row */}
+                  <div className="flex items-start gap-2 p-3">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap mb-1">
+                        {inv.label && (
+                          <span className="text-xs font-medium text-foreground">{inv.label}</span>
+                        )}
+                        <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                          <Users className="h-3 w-3" />
+                          {inv.useCount} {inv.useCount === 1 ? "use" : "uses"}
                         </span>
-                      )}
+                        {inv.expiresAt && (
+                          <span className={`flex items-center gap-1 text-xs ${isExpired ? "text-destructive" : "text-muted-foreground"}`}>
+                            <Clock className="h-3 w-3" />
+                            {isExpired ? "Expired" : `Expires ${formatDate(inv.expiresAt)}`}
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs text-muted-foreground truncate font-mono">{url}</p>
+                      <p className="text-xs text-muted-foreground/60 mt-0.5">
+                        Created {formatDate(inv.createdAt)}
+                      </p>
                     </div>
-                    <p className="text-xs text-muted-foreground truncate font-mono">{url}</p>
-                    <p className="text-xs text-muted-foreground/60 mt-0.5">
-                      Created {formatDate(inv.createdAt)}
-                    </p>
+                    <div className="flex gap-1 flex-shrink-0">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                        title="Copy link"
+                        onClick={() => copyToClipboard(inv.token)}
+                      >
+                        {isCopied ? (
+                          <Check className="h-3.5 w-3.5 text-green-500" />
+                        ) : (
+                          <Copy className="h-3.5 w-3.5" />
+                        )}
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                        title="Revoke invite"
+                        disabled={revokeInvite.isPending}
+                        onClick={() => revokeInvite.mutate({ token: inv.token })}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
                   </div>
-                  <div className="flex gap-1 flex-shrink-0">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-7 w-7 text-muted-foreground hover:text-foreground"
-                      title="Copy link"
-                      onClick={() => copyToClipboard(inv.token)}
-                    >
-                      {isCopied ? (
-                        <Check className="h-3.5 w-3.5 text-green-500" />
-                      ) : (
-                        <Copy className="h-3.5 w-3.5" />
-                      )}
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-7 w-7 text-muted-foreground hover:text-destructive"
-                      title="Revoke invite"
-                      disabled={revokeInvite.isPending}
-                      onClick={() => revokeInvite.mutate({ token: inv.token })}
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </Button>
-                  </div>
+
+                  {/* Accepted by toggle */}
+                  <button
+                    className="w-full flex items-center gap-1.5 px-3 py-1.5 border-t border-border/50 text-xs text-muted-foreground hover:text-foreground hover:bg-background/20 transition-colors"
+                    onClick={() => toggleExpanded(inv.token)}
+                  >
+                    <UserCheck className="h-3 w-3" />
+                    <span>Accepted by</span>
+                    {inv.useCount > 0 && (
+                      <Badge variant="secondary" className="text-[10px] h-4 px-1">{inv.useCount}</Badge>
+                    )}
+                    <span className="ml-auto">
+                      {isExpanded
+                        ? <ChevronDown className="h-3 w-3" />
+                        : <ChevronRight className="h-3 w-3" />
+                      }
+                    </span>
+                  </button>
+
+                  {/* Expanded accepted-by list */}
+                  {isExpanded && (
+                    <div className="px-3 pb-3 pt-1 border-t border-border/30 bg-background/10">
+                      <AcceptedByList token={inv.token} />
+                    </div>
+                  )}
                 </div>
               );
             })}

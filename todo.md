@@ -142,3 +142,12 @@
 - [x] /invite/:token accept page (validates token, prompts login if needed, auto-accepts after login)
 - [x] Invite button in NavBar (visible only when logged in)
 - [x] 10 unit tests for invite token and validation logic (32 total tests pass)
+
+## Session 20 Features — Invite Accepted By + Admin Manage Users
+- [x] tRPC invites.acceptedBy query: return list of users who accepted a given invite token
+- [x] tRPC admin.listUsers: list all users with join date and invite source (admin only)
+- [x] tRPC admin.setRole: promote/demote user between user/admin roles (admin only)
+- [x] InviteModal: expandable "Accepted by" list per invite link (lazy-loaded on expand, avatar initials, relative timestamps)
+- [x] Admin Manage Users page at /admin/users with role toggle buttons, stats cards, search, invite source column
+- [x] Admin nav entry in NavBar (visible only to admin users, yellow highlight)
+- [x] 10 unit tests for admin procedures (42 total tests pass)

@@ -12,7 +12,8 @@ import {
 } from "./analytics";
 import { syncSkillsData, syncTeamMatchData } from "./scraper";
 import { syncTeamFullHistory, scrapeEventData } from "./browserScraper";
-import { teamMatches, teamEvents, teamSyncJobs, teamAwards, teams, invitations, inviteUses } from "../drizzle/schema";
+import { teamMatches, teamEvents, teamSyncJobs, teamAwards, teams, invitations, inviteUses, users } from "../drizzle/schema";
+import { TRPCError } from "@trpc/server";
 import { getDb } from "./db";
 import { asc, sql, eq, and, desc } from "drizzle-orm";
 
@@ -448,9 +449,97 @@ export const appRouter = router({
         }
         return { success: true, createdByName: inv.createdByName };
       }),
+
+    /** List users who accepted a specific invite (creator only) */
+    acceptedBy: protectedProcedure
+      .input(z.object({ token: z.string() }))
+      .query(async ({ ctx, input }) => {
+        const db = await getDb();
+        if (!db) return [];
+        // Verify the caller owns this invite
+        const [inv] = await db
+          .select({ id: invitations.id })
+          .from(invitations)
+          .where(
+            and(
+              eq(invitations.token, input.token),
+              eq(invitations.createdByOpenId, ctx.user.openId)
+            )
+          )
+          .limit(1);
+        if (!inv) return [];
+        const uses = await db
+          .select()
+          .from(inviteUses)
+          .where(eq(inviteUses.invitationId, inv.id))
+          .orderBy(desc(inviteUses.acceptedAt));
+        return uses.map((u) => ({
+          openId: u.acceptedByOpenId,
+          name: u.acceptedByName,
+          acceptedAt: u.acceptedAt,
+        }));
+      }),
   }),
 
-  // ─── Data Sync ──────────────────────────────────────────────────────────
+  // ─── Admin ───────────────────────────────────────────────────────────────────
+  admin: router({
+    /** List all users with join date and invite source (admin only) */
+    listUsers: protectedProcedure.query(async ({ ctx }) => {
+      if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+      const db = await getDb();
+      if (!db) return [];
+      // Get all users
+      const allUsers = await db
+        .select()
+        .from(users)
+        .orderBy(desc(users.createdAt));
+      // Get all invite uses to map openId → invite label/token
+      const allUses = await db
+        .select({
+          acceptedByOpenId: inviteUses.acceptedByOpenId,
+          invitationId: inviteUses.invitationId,
+          acceptedAt: inviteUses.acceptedAt,
+        })
+        .from(inviteUses);
+      // Get all invitations for label lookup
+      const allInvites = await db
+        .select({ id: invitations.id, label: invitations.label, token: invitations.token, createdByName: invitations.createdByName })
+        .from(invitations);
+      const inviteMap = new Map(allInvites.map((i) => [i.id, i]));
+      const useMap = new Map(allUses.map((u) => [u.acceptedByOpenId, u]));
+      return allUsers.map((u) => {
+        const use = useMap.get(u.openId);
+        const invite = use ? inviteMap.get(use.invitationId) : undefined;
+        return {
+          ...u,
+          inviteLabel: invite?.label ?? null,
+          inviteToken: invite?.token ?? null,
+          invitedBy: invite?.createdByName ?? null,
+          inviteAcceptedAt: use?.acceptedAt ?? null,
+        };
+      });
+    }),
+
+    /** Promote or demote a user's role (admin only) */
+    setRole: protectedProcedure
+      .input(z.object({
+        openId: z.string(),
+        role: z.enum(["user", "admin"]),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        if (input.openId === ctx.user.openId) throw new TRPCError({ code: "BAD_REQUEST", message: "Cannot change your own role" });
+        const db = await getDb();
+        if (!db) throw new Error("Database not available");
+        await db
+          .update(users)
+          .set({ role: input.role })
+          .where(eq(users.openId, input.openId));
+        return { success: true };
+      }),
+  }),
+
+  // ─── Data Syncc ──────────────────────────────────────────────────────────
   sync: router({
     status: publicProcedure.query(async () => {
       const [logs, count] = await Promise.all([getLastSyncStatus(), getTeamCount()]);
