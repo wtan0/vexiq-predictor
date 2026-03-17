@@ -167,21 +167,25 @@ export default function WorldFinals() {
         </div>
 
         {/* Top 3 Podium */}
+        {/* Layout: [silver=#2, gold=#1, bronze=#3] for classic podium look */}
         {!isLoading && contenders && contenders.length >= 3 && (
           <div className="grid grid-cols-3 gap-4 mb-8">
-            {[1, 0, 2].map((i) => {
-              const c = contenders[i];
-              const pos = i + 1;
-              const actualPos = i === 0 ? 2 : i === 1 ? 1 : 3;
+            {([1, 0, 2] as const).map((dataIdx) => {
+              // dataIdx is the index into contenders[] (sorted by winProbability desc)
+              // Visual position: dataIdx 1 → left (silver), 0 → center (gold), 2 → right (bronze)
+              const c = contenders[dataIdx];
+              // Medal style index: 0=gold, 1=silver, 2=bronze
+              const medalIdx = dataIdx === 0 ? 0 : dataIdx === 1 ? 1 : 2;
+              const actualRank = dataIdx + 1; // rank 1, 2, or 3
               return (
                 <Card
                   key={c.teamNumber}
-                  className={`border cursor-pointer hover:scale-[1.02] transition-transform ${MEDAL_BG[i]}`}
+                  className={`border cursor-pointer hover:scale-[1.02] transition-transform ${MEDAL_BG[medalIdx]}`}
                   onClick={() => navigate(`/team/${c.teamNumber}`)}
                 >
                   <CardContent className="p-5 text-center">
-                    <div className={`text-4xl font-black mb-2 ${MEDAL_COLORS[i]}`}>
-                      #{actualPos}
+                    <div className={`text-4xl font-black mb-2 ${MEDAL_COLORS[medalIdx]}`}>
+                      #{actualRank}
                     </div>
                     <div className="text-xl font-bold mb-1">{c.teamNumber}</div>
                     {c.teamName && (
@@ -193,7 +197,7 @@ export default function WorldFinals() {
                         {c.country}
                       </div>
                     )}
-                    <div className={`text-2xl font-bold ${MEDAL_COLORS[i]}`}>
+                    <div className={`text-2xl font-bold ${MEDAL_COLORS[medalIdx]}`}>
                       {c.winProbability.toFixed(2)}%
                     </div>
                     <div className="text-xs text-muted-foreground">win probability</div>

@@ -75,3 +75,6 @@
 - [x] Add syncAllQualifiers endpoint: scrapes all World qualifier teams in background
 - [x] Add getSyncProgress endpoint: returns per-team sync status
 - [x] Add "Sync All Qualifiers" button + live progress panel on World Finals page
+
+## Session 7 Bug Fixes
+- [x] Fix podium: #1 should have highest win probability; fix podium layout and rank labels
