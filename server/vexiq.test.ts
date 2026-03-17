@@ -124,6 +124,72 @@ describe("auth.logout", () => {
   });
 });
 
+// ─── Finalist rank trend data tests ─────────────────────────────────────────
+describe("finalistTrendData computation", () => {
+  // Mirrors the filter + map logic used in TeamProfile.tsx
+  function buildTrendData(progress: Array<{
+    eventName: string;
+    eventDate: Date | null;
+    finalistRank: number | null;
+    finalistScore: number | null;
+  }>) {
+    return progress
+      .filter((p) => p.finalistRank != null)
+      .map((p, i) => ({
+        name: p.eventName.length > 18 ? p.eventName.slice(0, 18) + "\u2026" : p.eventName,
+        fullName: p.eventName,
+        rank: p.finalistRank!,
+        score: p.finalistScore ?? null,
+        date: p.eventDate ? p.eventDate.toLocaleDateString() : `Event ${i + 1}`,
+      }));
+  }
+
+  it("should include only events with a finalistRank", () => {
+    const progress = [
+      { eventName: "Event A", eventDate: new Date("2025-10-01"), finalistRank: 1, finalistScore: 320 },
+      { eventName: "Event B", eventDate: new Date("2025-11-01"), finalistRank: null, finalistScore: null },
+      { eventName: "Event C", eventDate: new Date("2025-12-01"), finalistRank: 3, finalistScore: 280 },
+    ];
+    const result = buildTrendData(progress);
+    expect(result).toHaveLength(2);
+    expect(result[0].fullName).toBe("Event A");
+    expect(result[1].fullName).toBe("Event C");
+  });
+
+  it("should truncate long event names to 18 chars + ellipsis", () => {
+    const progress = [
+      { eventName: "A Very Long Event Name That Exceeds Limit", eventDate: null, finalistRank: 2, finalistScore: null },
+    ];
+    const result = buildTrendData(progress);
+    expect(result[0].name).toBe("A Very Long Event \u2026");
+    expect(result[0].fullName).toBe("A Very Long Event Name That Exceeds Limit");
+  });
+
+  it("should preserve short event names unchanged", () => {
+    const progress = [
+      { eventName: "Short Name", eventDate: null, finalistRank: 1, finalistScore: 300 },
+    ];
+    const result = buildTrendData(progress);
+    expect(result[0].name).toBe("Short Name");
+  });
+
+  it("should return empty array when no events have finalist ranks", () => {
+    const progress = [
+      { eventName: "Event X", eventDate: null, finalistRank: null, finalistScore: null },
+    ];
+    const result = buildTrendData(progress);
+    expect(result).toHaveLength(0);
+  });
+
+  it("should use null for score when finalistScore is null", () => {
+    const progress = [
+      { eventName: "Event Y", eventDate: null, finalistRank: 4, finalistScore: null },
+    ];
+    const result = buildTrendData(progress);
+    expect(result[0].score).toBeNull();
+  });
+});
+
 // ─── Pure function helpers (extracted from analytics.ts logic) ─────────────
 // These mirror the VEX IQ cooperative model (no win/loss, uses avgTeamworkScore)
 

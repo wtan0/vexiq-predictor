@@ -14,7 +14,8 @@ import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import {
   LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid,
-  Tooltip, Legend, ResponsiveContainer, Area, AreaChart, ComposedChart
+  Tooltip, Legend, ResponsiveContainer, Area, AreaChart, ComposedChart,
+  ReferenceLine, LabelList
 } from "recharts";
 
 const CHART_GRID = "oklch(0.22 0.02 240)";
@@ -34,6 +35,174 @@ function formatTimeAgo(date: Date): string {
   if (diffDay === 1) return "yesterday";
   if (diffDay < 30) return `${diffDay}d ago`;
   return date.toLocaleDateString();
+}
+
+// ─── FinalistRankChart sub-component ────────────────────────────────────────
+interface FinalistRankPoint {
+  name: string;
+  fullName: string;
+  rank: number;
+  score: number | null;
+  date: string;
+}
+
+function FinalistRankChart({ data }: { data: FinalistRankPoint[] }) {
+  // Determine Y-axis domain: invert so rank #1 is at the top
+  const maxRank = Math.max(...data.map((d) => d.rank), 4);
+
+  // Medal color per dot
+  const getMedalColor = (rank: number) =>
+    rank === 1 ? "oklch(0.78 0.18 85)"  // gold
+    : rank === 2 ? "oklch(0.75 0.04 240)" // silver
+    : rank === 3 ? "oklch(0.68 0.14 40)"  // bronze
+    : "oklch(0.55 0.18 250)";              // blue for others
+
+  const CustomDot = (props: any) => {
+    const { cx, cy, payload } = props;
+    const color = getMedalColor(payload.rank);
+    return (
+      <circle
+        cx={cx} cy={cy} r={6}
+        fill={color}
+        stroke="oklch(0.15 0.02 240)"
+        strokeWidth={2}
+      />
+    );
+  };
+
+  const CustomActiveDot = (props: any) => {
+    const { cx, cy, payload } = props;
+    const color = getMedalColor(payload.rank);
+    return (
+      <circle
+        cx={cx} cy={cy} r={9}
+        fill={color}
+        stroke="oklch(0.15 0.02 240)"
+        strokeWidth={2}
+        opacity={0.9}
+      />
+    );
+  };
+
+  const CustomTooltip = ({ active, payload }: any) => {
+    if (!active || !payload?.length) return null;
+    const d = payload[0].payload as FinalistRankPoint;
+    const medal = d.rank === 1 ? "🥇" : d.rank === 2 ? "🥈" : d.rank === 3 ? "🥉" : "";
+    return (
+      <div className="bg-card border border-border rounded-lg p-3 shadow-xl text-sm max-w-[200px]">
+        <p className="font-semibold text-foreground text-xs leading-tight mb-1 truncate">{d.fullName}</p>
+        <p className="text-xs text-muted-foreground mb-2">{d.date}</p>
+        <div className="flex items-center gap-2">
+          <span className="text-muted-foreground text-xs">Finalist Rank:</span>
+          <span className="font-bold text-foreground text-xs">{medal} #{d.rank}</span>
+        </div>
+        {d.score != null && (
+          <div className="flex items-center gap-2 mt-1">
+            <span className="text-muted-foreground text-xs">Final Score:</span>
+            <span className="font-medium text-amber-400 text-xs">{d.score}</span>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  // Custom Y-axis tick: show as "#N"
+  const RankTick = ({ x, y, payload }: any) => (
+    <text x={x} y={y} dy={4} textAnchor="end" fill="oklch(0.60 0.015 240)" fontSize={11}>
+      #{payload.value}
+    </text>
+  );
+
+  return (
+    <div>
+      {/* Legend row */}
+      <div className="flex items-center gap-4 mb-3 text-xs text-muted-foreground">
+        <span className="flex items-center gap-1">
+          <span className="inline-block w-3 h-3 rounded-full" style={{ background: "oklch(0.78 0.18 85)" }} />
+          #1 Champion
+        </span>
+        <span className="flex items-center gap-1">
+          <span className="inline-block w-3 h-3 rounded-full" style={{ background: "oklch(0.75 0.04 240)" }} />
+          #2 Runner-up
+        </span>
+        <span className="flex items-center gap-1">
+          <span className="inline-block w-3 h-3 rounded-full" style={{ background: "oklch(0.68 0.14 40)" }} />
+          #3 Third
+        </span>
+        <span className="flex items-center gap-1">
+          <span className="inline-block w-3 h-3 rounded-full" style={{ background: "oklch(0.55 0.18 250)" }} />
+          Other
+        </span>
+      </div>
+      <ResponsiveContainer width="100%" height={280}>
+        <LineChart data={data} margin={{ top: 16, right: 24, left: 8, bottom: 70 }}>
+          <defs>
+            <linearGradient id="rankLineGrad" x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0%" stopColor="oklch(0.55 0.18 250)" />
+              <stop offset="100%" stopColor="oklch(0.78 0.18 85)" />
+            </linearGradient>
+          </defs>
+          <CartesianGrid strokeDasharray="3 3" stroke={CHART_GRID} />
+          {/* Reference lines for medal positions */}
+          <ReferenceLine y={1} stroke="oklch(0.78 0.18 85)" strokeDasharray="4 3" strokeOpacity={0.5}
+            label={{ value: "Champion", position: "insideTopRight", fill: "oklch(0.78 0.18 85)", fontSize: 10 }} />
+          <ReferenceLine y={2} stroke="oklch(0.75 0.04 240)" strokeDasharray="4 3" strokeOpacity={0.4}
+            label={{ value: "Runner-up", position: "insideTopRight", fill: "oklch(0.75 0.04 240)", fontSize: 10 }} />
+          <ReferenceLine y={3} stroke="oklch(0.68 0.14 40)" strokeDasharray="4 3" strokeOpacity={0.4}
+            label={{ value: "3rd Place", position: "insideTopRight", fill: "oklch(0.68 0.14 40)", fontSize: 10 }} />
+          <XAxis
+            dataKey="name"
+            tick={CHART_TICK}
+            angle={-40}
+            textAnchor="end"
+            height={80}
+            interval={0}
+          />
+          <YAxis
+            reversed
+            domain={[1, maxRank + 1]}
+            tick={<RankTick />}
+            allowDecimals={false}
+            tickCount={Math.min(maxRank + 1, 8)}
+            label={{ value: "Rank", angle: -90, position: "insideLeft", fill: "oklch(0.60 0.015 240)", fontSize: 11, dy: 20 }}
+          />
+          <Tooltip content={<CustomTooltip />} />
+          <Line
+            type="monotone"
+            dataKey="rank"
+            name="Finalist Rank"
+            stroke="url(#rankLineGrad)"
+            strokeWidth={2.5}
+            dot={<CustomDot />}
+            activeDot={<CustomActiveDot />}
+          >
+            <LabelList
+              dataKey="rank"
+              position="top"
+              formatter={(v: number) => `#${v}`}
+              style={{ fill: "oklch(0.75 0.015 240)", fontSize: 10, fontWeight: 600 }}
+            />
+          </Line>
+        </LineChart>
+      </ResponsiveContainer>
+      {/* Summary row */}
+      <div className="flex flex-wrap gap-3 mt-3">
+        {data.map((d, i) => (
+          <div key={i} className="flex items-center gap-1.5 text-xs">
+            <span
+              className="inline-block w-2.5 h-2.5 rounded-full flex-shrink-0"
+              style={{ background: getMedalColor(d.rank) }}
+            />
+            <span className="text-muted-foreground truncate max-w-[120px]" title={d.fullName}>{d.name}</span>
+            <span className="font-semibold text-foreground">#{d.rank}</span>
+            {d.score != null && (
+              <span className="text-muted-foreground">({d.score})</span>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
 }
 
 // ─── EventHistoryTable sub-component ─────────────────────────────────────────
@@ -449,6 +618,17 @@ export default function TeamProfile() {
   const hasEventData = (progress ?? []).length > 1 ||
     ((progress ?? []).length === 1 && (progress![0].driverScore ?? 0) > 0);
 
+  // Build finalist rank trend data (only events where a finalist rank was recorded)
+  const finalistTrendData = (progress ?? [])
+    .filter((p) => p.finalistRank != null)
+    .map((p, i) => ({
+      name: p.eventName.length > 18 ? p.eventName.slice(0, 18) + "…" : p.eventName,
+      fullName: p.eventName,
+      rank: p.finalistRank!,
+      score: p.finalistScore ?? null,
+      date: p.eventDate ? new Date(p.eventDate).toLocaleDateString() : `Event ${i + 1}`,
+    }));
+
   const chartData = (progress ?? []).map((p, i) => ({
     name: p.eventName.length > 18 ? p.eventName.slice(0, 18) + "…" : p.eventName,
     fullName: p.eventName,
@@ -819,6 +999,24 @@ export default function TeamProfile() {
                 </ResponsiveContainer>
               </CardContent>
             </Card>
+
+            {/* Finalist Rank Trend Chart */}
+            {finalistTrendData.length >= 2 && (
+              <Card className="bg-card border-border">
+                <CardHeader>
+                  <CardTitle className="text-base font-semibold flex items-center gap-2">
+                    <Trophy className="h-4 w-4 text-amber-400" />
+                    Finalist Rank Trend — Playoff Performance
+                    <span className="text-xs text-muted-foreground font-normal ml-1">
+                      (lower rank = better; #1 = champion)
+                    </span>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <FinalistRankChart data={finalistTrendData} />
+                </CardContent>
+              </Card>
+            )}
 
             {/* Teamwork Match Scores by Event */}
             {chartData.some((d) => d.total_matches > 0) && (

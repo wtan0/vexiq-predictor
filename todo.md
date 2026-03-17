@@ -116,3 +116,11 @@
   - computeCompositeScore: W_FINAL_SCORE=0.22 > W_AVG_SCORE=0.12; added bestFinalistRank factor (0.07)
   - computeHeadToHead: finalRoundScore weight=0.25 (highest); falls back to avgScore if no final data
   - Both callers (getTeamStats, getWorldFinalsContenders) now extract Match #X-Y scores from DB
+
+## Session 16 Features
+- [x] Add finalist rank trend chart to Team Profile stats section
+  - FinalistRankChart component: inverted Y-axis (rank #1 at top), medal-colored dots, reference lines for top-3, LabelList showing rank on each point
+  - Tooltip shows event name, date, finalist rank (with medal emoji), and final score
+  - Summary row below chart lists all events with medal color dot + rank + score
+  - Only renders when ≥2 events have finalist rank data
+  - 5 new unit tests for buildTrendData logic (all 13 tests pass)
