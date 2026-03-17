@@ -1,35 +1,22 @@
 /**
- * Browser-based scraper using Puppeteer + system Chromium
- * to bypass Cloudflare protection on RobotEvents.
+ * RobotEvents API-based scraper for VEX IQ Elementary 2025-2026 season.
  *
- * Team page tabs: Info | Rankings | Match Results | Awards
+ * Replaces the previous Puppeteer/Chromium implementation with direct calls to
+ * the official RobotEvents v2 REST API. This works in any environment (including
+ * production deployments where Chromium is not available).
  *
- * Match Results tab: Shows matches grouped by event, with pagination.
- *   Each event section has a table with columns:
- *     Match Name | Date | Team1 | Score | Team2 | Score
- *   Followed by a small Rank/WP table.
- *   Event links in the format /RE-VIQRC-25-XXXX.html
+ * API docs: https://www.robotevents.com/api/v2
  *
- * Awards tab: Shows awards grouped by event.
- *   Format: [RE-VIQRC-25-XXXX] Event Name
- *           Award Name | Qualifies For
- *
- * Event page structure (e.g. RE-VIQRC-25-3671.html#results-):
- *   - Default tab = "Skills": Table with columns
- *       Rank | Team | Driver Attempts | Driver Highscore | Programming Attempts | Programming Highscore | Total Highscore
- *   - "Division 1" tab: Table with columns
- *       Match | Red Team | Score | Blue Team | Score
- *     Rankings table: Rank | Team | Name | Avg. Points
+ * Key endpoints used:
+ *   GET /teams?number[]=XXXX&program[]=41          → look up team ID
+ *   GET /teams/{id}/events?season[]=196            → list events for 2025-2026
+ *   GET /events/{id}/divisions/{div}/matches?team[]=id  → match results
+ *   GET /events/{id}/divisions/{div}/rankings?team[]=id → teamwork rankings
+ *   GET /events/{id}/divisions/{div}/finalistRankings?team[]=id → playoff rank
+ *   GET /events/{id}/skills?team[]=id              → skills scores
+ *   GET /teams/{id}/awards?season[]=196            → awards
  */
 
-// Use puppeteer-extra with stealth plugin to bypass Cloudflare bot detection
-import { createRequire } from "module";
-const _require = createRequire(import.meta.url);
-const puppeteerExtra = _require("puppeteer-extra");
-const StealthPlugin = _require("puppeteer-extra-plugin-stealth");
-puppeteerExtra.use(StealthPlugin());
-
-import type { Browser, Page } from "puppeteer-core";
 import { getDb } from "./db";
 import {
   teamEvents,
@@ -42,46 +29,111 @@ import {
 } from "../drizzle/schema";
 import { eq, and } from "drizzle-orm";
 
-const BASE_URL = "https://www.robotevents.com";
-const CHROMIUM_PATH = "/usr/bin/chromium-browser";
+// ─── Constants ────────────────────────────────────────────────────────────────
 
-let _browser: Browser | null = null;
+const BASE = "https://www.robotevents.com/api/v2";
+const SEASON_ID = 196; // VEX IQ 2025-2026: Mix & Match
+const PROGRAM_ID = 41; // VEX IQ Robotics Competition
 
-async function getBrowser(): Promise<Browser> {
-  if (_browser && (_browser as any).connected) return _browser;
-  _browser = await launchBrowser();
-  return _browser;
+function getApiKey(): string {
+  const key = process.env.ROBOTEVENTS_API_KEY;
+  if (!key) throw new Error("ROBOTEVENTS_API_KEY environment variable is not set");
+  return key;
 }
 
-async function launchBrowser(): Promise<Browser> {
-  return puppeteerExtra.launch({
-    executablePath: CHROMIUM_PATH,
-    headless: true,
-    args: [
-      "--no-sandbox",
-      "--disable-setuid-sandbox",
-      "--disable-dev-shm-usage",
-      "--disable-gpu",
-      "--no-first-run",
-      "--disable-extensions",
-    ],
-  }) as Promise<Browser>;
+function apiHeaders(): Record<string, string> {
+  return {
+    Authorization: `Bearer ${getApiKey()}`,
+    Accept: "application/json",
+  };
 }
 
-async function newPage(browser: Browser): Promise<Page> {
-  const page = await browser.newPage();
-  await page.setUserAgent(
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-  );
-  await page.setViewport({ width: 1280, height: 800 });
-  return page;
+// ─── Generic paginated fetch ──────────────────────────────────────────────────
+
+async function fetchAllPages<T>(url: string): Promise<T[]> {
+  const results: T[] = [];
+  let nextUrl: string | null = url;
+
+  while (nextUrl) {
+    const resp = await fetch(nextUrl, { headers: apiHeaders() });
+    if (!resp.ok) {
+      const text = await resp.text();
+      throw new Error(`RobotEvents API error ${resp.status}: ${text.slice(0, 200)}`);
+    }
+    const data = (await resp.json()) as { data: T[]; meta?: { next_page_url?: string | null } };
+    results.push(...(data.data ?? []));
+    nextUrl = data.meta?.next_page_url ?? null;
+  }
+
+  return results;
 }
 
-function sleep(ms: number) {
-  return new Promise((r) => setTimeout(r, ms));
+// ─── Team lookup ──────────────────────────────────────────────────────────────
+
+interface ApiTeam {
+  id: number;
+  number: string;
+  team_name: string;
+  grade: string;
 }
 
-// ─── Types ────────────────────────────────────────────────────────────────────
+/** Look up the numeric team ID for a given team number (e.g. "478M") */
+async function getTeamId(teamNumber: string): Promise<number | null> {
+  const url = `${BASE}/teams?number[]=${encodeURIComponent(teamNumber)}&program[]=${PROGRAM_ID}&per_page=5`;
+  const teams = await fetchAllPages<ApiTeam>(url);
+  const match = teams.find(
+    (t) => t.number === teamNumber && t.grade?.toLowerCase().includes("elementary")
+  ) ?? teams.find((t) => t.number === teamNumber);
+  return match?.id ?? null;
+}
+
+// ─── Event types ──────────────────────────────────────────────────────────────
+
+interface ApiEvent {
+  id: number;
+  sku: string;
+  name: string;
+  start: string;
+  end: string;
+  divisions: Array<{ id: number; name: string }>;
+}
+
+interface ApiMatch {
+  id: number;
+  name: string;
+  scheduled: string | null;
+  started: string | null;
+  scored: boolean;
+  alliances: Array<{
+    color: "red" | "blue";
+    score: number;
+    teams: Array<{ team: { id: number; name: string } }>;
+  }>;
+}
+
+interface ApiRanking {
+  rank: number;
+  team: { id: number; name: string };
+  average_points: number | null;
+  high_score: number | null;
+}
+
+interface ApiSkill {
+  event: { id: number; name: string; code: string };
+  type: "driver" | "programming";
+  rank: number;
+  score: number;
+  attempts: number;
+}
+
+interface ApiAward {
+  id: number;
+  event: { id: number; name: string; code: string };
+  title: string;
+  qualifications: string[];
+}
+
+// ─── Public types (kept compatible with old interface) ────────────────────────
 
 export interface EventSkillsData {
   eventCode: string;
@@ -122,260 +174,100 @@ export interface AwardRecord {
   qualifiesFor: string | null;
 }
 
-// ─── Team event discovery (with pagination) ───────────────────────────────────
+// ─── Core API helpers ─────────────────────────────────────────────────────────
+
+/** Fetch all events for a team in the 2025-2026 season */
+async function fetchTeamEvents(teamId: number): Promise<ApiEvent[]> {
+  const url = `${BASE}/teams/${teamId}/events?season[]=${SEASON_ID}&per_page=250`;
+  return fetchAllPages<ApiEvent>(url);
+}
+
+/** Fetch all matches for a team at a specific event/division */
+async function fetchEventMatches(
+  eventId: number,
+  divId: number,
+  teamId: number
+): Promise<ApiMatch[]> {
+  const url = `${BASE}/events/${eventId}/divisions/${divId}/matches?team[]=${teamId}&per_page=250`;
+  return fetchAllPages<ApiMatch>(url);
+}
+
+/** Fetch teamwork rankings for a team at a specific event/division */
+async function fetchTeamworkRanking(
+  eventId: number,
+  divId: number,
+  teamId: number
+): Promise<ApiRanking | null> {
+  const url = `${BASE}/events/${eventId}/divisions/${divId}/rankings?team[]=${teamId}&per_page=10`;
+  const rows = await fetchAllPages<ApiRanking>(url);
+  return rows[0] ?? null;
+}
+
+/** Fetch finalist (playoff) ranking for a team at a specific event/division */
+async function fetchFinalistRanking(
+  eventId: number,
+  divId: number,
+  teamId: number
+): Promise<ApiRanking | null> {
+  const url = `${BASE}/events/${eventId}/divisions/${divId}/finalistRankings?team[]=${teamId}&per_page=10`;
+  const rows = await fetchAllPages<ApiRanking>(url);
+  return rows[0] ?? null;
+}
+
+/** Fetch skills records for a team in the 2025-2026 season */
+async function fetchTeamSkills(teamId: number): Promise<ApiSkill[]> {
+  const url = `${BASE}/teams/${teamId}/skills?season[]=${SEASON_ID}&per_page=250`;
+  return fetchAllPages<ApiSkill>(url);
+}
+
+/** Fetch awards for a team in the 2025-2026 season */
+async function fetchTeamAwards(teamId: number): Promise<ApiAward[]> {
+  const url = `${BASE}/teams/${teamId}/awards?season[]=${SEASON_ID}&per_page=250`;
+  return fetchAllPages<ApiAward>(url);
+}
+
+// ─── Team page data (event codes + awards) ────────────────────────────────────
 
 /**
- * Scrape the team page to get all event codes from the Match Results tab.
- * Handles pagination by clicking the "next page" button until all pages are loaded.
- * Also scrapes awards from the Awards tab.
+ * Replaces the old Puppeteer-based scrapeTeamPage.
+ * Returns event codes (SKUs) and awards for a team.
  */
 export async function scrapeTeamPage(teamNumber: string): Promise<{
   eventCodes: string[];
   awards: AwardRecord[];
 }> {
-  const browser = await getBrowser();
-  const page = await newPage(browser);
-
-  try {
-    const url = `${BASE_URL}/teams/VIQRC/${encodeURIComponent(teamNumber)}`;
-    console.log(`[BrowserScraper] Loading team page: ${url}`);
-    await page.goto(url, { waitUntil: "networkidle2", timeout: 45000 });
-    await sleep(1500);
-
-    // ── Click "Match Results" tab ────────────────────────────────────────────
-    const clickedMatchResults = await page.evaluate(() => {
-      const links = Array.from(document.querySelectorAll("a"));
-      const tab = links.find((a) => a.textContent?.trim() === "Match Results");
-      if (tab) { (tab as HTMLAnchorElement).click(); return true; }
-      return false;
-    });
-    if (clickedMatchResults) await sleep(1500);
-
-    // ── Collect event codes across all pages ─────────────────────────────────
-    const allEventCodes = new Set<string>();
-
-    const collectEventCodesFromCurrentPage = async () => {
-      const codes = await page.evaluate(() => {
-        const links = Array.from(document.querySelectorAll("a[href]"));
-        const found: string[] = [];
-        const seen = new Set<string>();
-        for (const a of links) {
-          const href = (a as HTMLAnchorElement).href || "";
-          const m = href.match(/\/(RE-VIQRC-25-\d+)\.html/);
-          if (m && !seen.has(m[1])) {
-            seen.add(m[1]);
-            found.push(m[1]);
-          }
-        }
-        return found;
-      });
-      codes.forEach((c) => allEventCodes.add(c));
-      return codes.length;
-    };
-
-    // Collect from page 1
-    await collectEventCodesFromCurrentPage();
-
-    // Check for pagination and iterate through all pages
-    // RobotEvents uses Bootstrap pagination: .pagination > .page-item > .page-link
-    // The "»" button has spaces: " » " — must trim when matching
-    let pageNum = 1;
-    while (true) {
-      const hasNextPage = await page.evaluate((currentPage: number) => {
-        // Use .page-link elements for reliable selection
-        const pageLinks = Array.from(document.querySelectorAll(".page-link"));
-
-        // PRIORITY 1: Click the next numbered page link (e.g. "2" when on page 1)
-        // This is safer than clicking "»" which jumps to the LAST page, not next page
-        const nextPageLink = pageLinks.find((el) => {
-          const text = el.textContent?.trim();
-          return text === String(currentPage + 1);
-        });
-        if (nextPageLink) {
-          const parentLi = nextPageLink.closest(".page-item");
-          if (parentLi && parentLi.classList.contains("disabled")) return false;
-          (nextPageLink as HTMLElement).click();
-          return true;
-        }
-
-        // PRIORITY 2: Look for a "›" (single chevron = next page) button
-        // Note: "»" is the LAST PAGE button — do NOT use it for sequential pagination
-        const singleNextBtn = pageLinks.find((el) => {
-          const text = el.textContent?.trim();
-          return text === "›" || text === "Next";
-        });
-        if (singleNextBtn) {
-          const parentLi = singleNextBtn.closest(".page-item");
-          if (parentLi && parentLi.classList.contains("disabled")) return false;
-          (singleNextBtn as HTMLElement).click();
-          return true;
-        }
-
-        // No next page found
-        return false;
-      }, pageNum);
-
-      if (!hasNextPage) break;
-
-      pageNum++;
-      await sleep(2000); // Give Vue/React time to re-render after page change
-      const newCodes = await collectEventCodesFromCurrentPage();
-      console.log(`[BrowserScraper] Page ${pageNum}: found ${newCodes} event codes (total so far: ${allEventCodes.size})`);
-
-      // Safety limit
-      if (pageNum >= 20) break;
-    }
-
-    console.log(`[BrowserScraper] Found ${allEventCodes.size} total events for team ${teamNumber} across ${pageNum} pages`);
-
-    // ── Click "Awards" tab ───────────────────────────────────────────────────
-    const clickedAwards = await page.evaluate(() => {
-      const links = Array.from(document.querySelectorAll("a"));
-      const tab = links.find((a) => a.textContent?.trim() === "Awards");
-      if (tab) { (tab as HTMLAnchorElement).click(); return true; }
-      return false;
-    });
-
-    const awards: AwardRecord[] = [];
-
-    if (clickedAwards) {
-      await sleep(1500);
-
-      // Scrape awards across all pages
-      let awardsPageNum = 1;
-      while (true) {
-        const pageAwards = await page.evaluate(() => {
-          const results: Array<{
-            eventCode: string;
-            eventName: string;
-            awardName: string;
-            qualifiesFor: string | null;
-          }> = [];
-
-          // Awards are structured as:
-          // [RE-VIQRC-25-XXXX] Event Name
-          //   Award Name | Qualifies For
-          // We parse the body text to extract this
-          const bodyText = document.body.innerText;
-          const lines = bodyText.split("\n").map((l) => l.trim()).filter(Boolean);
-
-          let currentEventCode = "";
-          let currentEventName = "";
-          let i = 0;
-
-          while (i < lines.length) {
-            const line = lines[i];
-            // Check if this line is an event header: [RE-VIQRC-25-XXXX] Event Name
-            const eventMatch = line.match(/^\[?(RE-VIQRC-25-\d+)\]?\s+(.*)/);
-            if (eventMatch) {
-              currentEventCode = eventMatch[1];
-              currentEventName = eventMatch[2].trim();
-              i++;
-              continue;
-            }
-            // Check if this is an award line (not a header, not "Award", not "Qualifies For")
-            if (
-              currentEventCode &&
-              line !== "Award" &&
-              line !== "Qualifies For" &&
-              line !== "Award\tQualifies For" &&
-              !line.startsWith("Team ") &&
-              !line.startsWith("VEX ") &&
-              !line.startsWith("Info") &&
-              !line.startsWith("Rankings") &&
-              !line.startsWith("Match Results") &&
-              !line.startsWith("Awards") &&
-              !line.startsWith("VEX IQ Robotics Competition") &&
-              !line.startsWith("Site ") &&
-              line.length > 3
-            ) {
-              // Check if it looks like an award name
-              if (
-                line.includes("Award") ||
-                line.includes("Champion") ||
-                line.includes("Excellence") ||
-                line.includes("Design") ||
-                line.includes("Build") ||
-                line.includes("Innovate") ||
-                line.includes("Skills")
-              ) {
-                // Next line might be "Qualifies For" value
-                let qualifiesFor: string | null = null;
-                if (i + 1 < lines.length) {
-                  const nextLine = lines[i + 1];
-                  if (
-                    nextLine === "Event Region Championship" ||
-                    nextLine === "World Championship" ||
-                    nextLine.includes("Championship") ||
-                    nextLine.includes("Qualifies")
-                  ) {
-                    qualifiesFor = nextLine;
-                    i++;
-                  }
-                }
-                results.push({
-                  eventCode: currentEventCode,
-                  eventName: currentEventName,
-                  awardName: line,
-                  qualifiesFor,
-                });
-              }
-            }
-            i++;
-          }
-          return results;
-        });
-
-        awards.push(...pageAwards);
-
-        // Check for next page in awards
-        // IMPORTANT: Use numbered page link first — "»" jumps to LAST page, not next
-        const hasNextAwardsPage = await page.evaluate((currentPage: number) => {
-          const pageLinks = Array.from(document.querySelectorAll(".page-link"));
-          // Priority 1: numbered next page
-          const nextPageLink = pageLinks.find((el) => {
-            const text = el.textContent?.trim();
-            return text === String(currentPage + 1);
-          });
-          if (nextPageLink) {
-            const parentLi = nextPageLink.closest(".page-item");
-            if (parentLi && parentLi.classList.contains("disabled")) return false;
-            (nextPageLink as HTMLElement).click();
-            return true;
-          }
-          // Priority 2: single chevron "›" (next page, not last page)
-          const singleNext = pageLinks.find((el) => {
-            const text = el.textContent?.trim();
-            return text === "›" || text === "Next";
-          });
-          if (singleNext) {
-            const parentLi = singleNext.closest(".page-item");
-            if (parentLi && parentLi.classList.contains("disabled")) return false;
-            (singleNext as HTMLElement).click();
-            return true;
-          }
-          return false;
-        }, awardsPageNum);
-
-        if (!hasNextAwardsPage) break;
-        awardsPageNum++;
-        await sleep(1500);
-        if (awardsPageNum >= 10) break;
-      }
-
-      console.log(`[BrowserScraper] Found ${awards.length} awards for team ${teamNumber}`);
-    }
-
-    return { eventCodes: Array.from(allEventCodes), awards };
-  } catch (err) {
-    console.error(`[BrowserScraper] Error getting team page for ${teamNumber}:`, err);
+  const teamId = await getTeamId(teamNumber);
+  if (!teamId) {
+    console.warn(`[ApiScraper] Team ${teamNumber} not found in RobotEvents API`);
     return { eventCodes: [], awards: [] };
-  } finally {
-    await page.close();
   }
+
+  const [events, apiAwards] = await Promise.all([
+    fetchTeamEvents(teamId),
+    fetchTeamAwards(teamId),
+  ]);
+
+  const eventCodes = events.map((e) => e.sku);
+
+  const awards: AwardRecord[] = apiAwards.map((a) => {
+    // qualifications is an array of strings like ["World Championship", "Event Region Championship"]
+    const qualifiesFor = a.qualifications?.length > 0 ? a.qualifications.join(", ") : null;
+    return {
+      eventCode: a.event.code,
+      eventName: a.event.name,
+      awardName: a.title,
+      qualifiesFor,
+    };
+  });
+
+  console.log(
+    `[ApiScraper] Team ${teamNumber} (id=${teamId}): ${eventCodes.length} events, ${awards.length} awards`
+  );
+
+  return { eventCodes, awards };
 }
 
-// Legacy wrapper for backward compatibility
+/** Legacy wrapper for backward compatibility */
 export async function scrapeTeamEvents(teamNumber: string): Promise<string[]> {
   const { eventCodes } = await scrapeTeamPage(teamNumber);
   return eventCodes;
@@ -384,262 +276,101 @@ export async function scrapeTeamEvents(teamNumber: string): Promise<string[]> {
 // ─── Event data scraper ───────────────────────────────────────────────────────
 
 /**
- * Scrape one event page for a specific team.
- *
- * Strategy:
- *  1. Navigate to #results- (Skills tab is active by default).
- *  2. Extract skills data from Table[1] immediately — no click needed.
- *  3. Click "Division 1" tab, wait for render.
- *  4. Extract match results from Table[1] and teamwork rank from Table[3].
+ * Replaces the old Puppeteer-based scrapeEventData.
+ * Fetches skills, matches, rankings, and finalist rankings for one event.
  */
 export async function scrapeEventData(
   eventCode: string,
   teamNumber: string
 ): Promise<{ skills: EventSkillsData | null; matches: EventMatchData | null }> {
-  const browser = await getBrowser();
-  const page = await newPage(browser);
+  // Look up team ID
+  const teamId = await getTeamId(teamNumber);
+  if (!teamId) return { skills: null, matches: null };
 
-  try {
-    const url = `${BASE_URL}/robot-competitions/vex-iq-competition/${eventCode}.html#results-`;
-    console.log(`[BrowserScraper] Loading event page: ${url}`);
-    await page.goto(url, { waitUntil: "networkidle2", timeout: 45000 });
-    await sleep(2000);
-
-    // Debug: check what the page contains
-    const debugInfo = await page.evaluate(() => {
-      const tables = Array.from(document.querySelectorAll("table"));
-      return {
-        title: document.title,
-        tableCount: tables.length,
-        tableHeaders: tables.map((t, i) => ({
-          i,
-          headers: Array.from(t.querySelectorAll("th")).map(th => th.textContent?.trim() || ""),
-          rows: t.querySelectorAll("tbody tr").length,
-        })),
-      };
-    });
-    console.log(`[BrowserScraper] Page debug for ${eventCode}:`, JSON.stringify(debugInfo));
-
-    // ── Meta: event name + date ──────────────────────────────────────────────
-    const eventMeta = await page.evaluate(() => {
-      // Use page title: "Event Name : Robot Events" → strip " : Robot Events"
-      const rawTitle = document.title || "";
-      const titleParts = rawTitle.split(" : ");
-      // Remove the last part if it's "Robot Events"
-      const eventName = (titleParts.length > 1 && titleParts[titleParts.length - 1].trim() === "Robot Events")
-        ? titleParts.slice(0, -1).join(" : ").trim()
-        : (rawTitle || document.querySelector("h1")?.textContent?.trim() || "Unknown Event");
-      const allText = document.body.innerText;
-      const dateMatch = allText.match(/Date\s+(\d{1,2}-[A-Za-z]+-\d{4})/);
-      return { eventName: eventName || "Unknown Event", dateText: dateMatch?.[1] || "" };
-    });
-
-    // ── STEP 1: Skills tab is already active — extract skills table ──────────
-    // Table[1] = Skills: Rank | Team | Driver Attempts | Driver Highscore |
-    //                    Programming Attempts | Programming Highscore | Total Highscore
-    const skillsRow = await page.evaluate((team: string) => {
-      const tables = Array.from(document.querySelectorAll("table"));
-      for (const t of tables) {
-        const headers = Array.from(t.querySelectorAll("th")).map(
-          (th) => th.textContent?.trim() || ""
-        );
-        const isSkillsTable =
-          headers.some((h) => h.includes("Driver") && h.includes("Highscore")) ||
-          headers.some((h) => h.includes("Programming") && h.includes("Highscore")) ||
-          headers.some((h) => h.includes("Total") && h.includes("Highscore"));
-        if (!isSkillsTable) continue;
-        const rows = Array.from(t.querySelectorAll("tbody tr"));
-        for (const row of rows) {
-          const cells = Array.from(row.querySelectorAll("td")).map(
-            (td) => td.textContent?.trim() || ""
-          );
-          // cells: [rank, teamNum, driverAttempts, driverHS, progAttempts, progHS, totalHS]
-          if (cells[1] === team) return cells;
-        }
-      }
-      return null;
-    }, teamNumber);
-
-    // ── STEP 2: Click "Division 1" tab ───────────────────────────────────────
-    const div1Clicked = await page.evaluate(() => {
-      const links = Array.from(document.querySelectorAll("a"));
-      const div1 = links.find((a) => a.textContent?.trim() === "Division 1");
-      if (div1) {
-        (div1 as HTMLAnchorElement).click();
-        return true;
-      }
-      return false;
-    });
-
-    if (div1Clicked) await sleep(1800);
-
-    // ── STEP 3: Extract match results + teamwork rank ────────────────────────
-    // After clicking Division 1:
-    //   Table[1] = Matches: Match | Red Team | Score | Blue Team | Score
-    //   Table[3] = Teamwork rankings: Rank | Team | Name | Avg. Points
-    const divisionData = await page.evaluate((team: string) => {
-      const tables = Array.from(document.querySelectorAll("table"));
-
-      // --- Match results ---
-      const matches: Array<{
-        matchName: string;
-        matchDateText: string;
-        redTeam: string;
-        redScore: number;
-        blueTeam: string;
-        blueScore: number;
-      }> = [];
-
-      for (const t of tables) {
-        const headers = Array.from(t.querySelectorAll("th")).map(
-          (th) => th.textContent?.trim() || ""
-        );
-        if (
-          headers.length >= 5 &&
-          headers[0] === "Match" &&
-          headers[1] === "Red Team" &&
-          headers[3] === "Blue Team"
-        ) {
-          const rows = Array.from(t.querySelectorAll("tbody tr"));
-          for (const row of rows) {
-            const cells = Array.from(row.querySelectorAll("td"));
-            if (cells.length < 5) continue;
-            const matchCell = (cells[0] as HTMLElement).innerText?.trim() || "";
-            if (
-              !matchCell.toLowerCase().includes("teamwork") &&
-              !matchCell.toLowerCase().includes("match")
-            )
-              continue;
-            const lines = matchCell
-              .split("\n")
-              .map((l: string) => l.trim())
-              .filter(Boolean);
-            matches.push({
-              matchName: lines[0] || matchCell,
-              matchDateText: lines[1] || "",
-              redTeam: cells[1]?.textContent?.trim() || "",
-              redScore: parseInt(cells[2]?.textContent?.trim() || "0") || 0,
-              blueTeam: cells[3]?.textContent?.trim() || "",
-              blueScore: parseInt(cells[4]?.textContent?.trim() || "0") || 0,
-            });
-          }
-          break;
-        }
-      }
-
-      // --- Teamwork rankings (Avg. Points) ---
-      let teamworkRank: number | null = null;
-      let avgTeamworkScore: number | null = null;
-
-      for (const t of tables) {
-        const headers = Array.from(t.querySelectorAll("th")).map(
-          (th) => th.textContent?.trim() || ""
-        );
-        if (headers.some((h) => h.includes("Avg"))) {
-          const rows = Array.from(t.querySelectorAll("tbody tr"));
-          for (const row of rows) {
-            const cells = Array.from(row.querySelectorAll("td")).map(
-              (td) => td.textContent?.trim() || ""
-            );
-            if (cells[1] === team) {
-              teamworkRank = parseInt(cells[0]) || null;
-              avgTeamworkScore = parseFloat(cells[3]) || null;
-              break;
-            }
-          }
-          break;
-        }
-      }
-
-      // --- Finalist Ranking (Rank | Team | Name | Score) ---
-      // This table has exactly 4 columns: Rank, Team, Name, Score (no "Avg", no "Match")
-      let finalistRank: number | null = null;
-      let finalistScore: number | null = null;
-      for (const t of tables) {
-        const headers = Array.from(t.querySelectorAll("th")).map(
-          (th) => th.textContent?.trim() || ""
-        );
-        if (
-          headers.length === 4 &&
-          headers[0] === "Rank" &&
-          headers[1] === "Team" &&
-          headers[2] === "Name" &&
-          headers[3] === "Score"
-        ) {
-          const rows = Array.from(t.querySelectorAll("tbody tr"));
-          for (const row of rows) {
-            const cells = Array.from(row.querySelectorAll("td")).map(
-              (td) => td.textContent?.trim() || ""
-            );
-            if (cells[1] === team) {
-              finalistRank = parseInt(cells[0]) || null;
-              finalistScore = parseInt(cells[3]) || null;
-              break;
-            }
-          }
-          break;
-        }
-      }
-
-      return { matches, teamworkRank, avgTeamworkScore, finalistRank, finalistScore };
-    }, teamNumber);
-
-    // ── Parse dates ──────────────────────────────────────────────────────────
-    const eventDate = parseEventDate(eventMeta.dateText);
-
-    // ── Build skills result ──────────────────────────────────────────────────
-    let skills: EventSkillsData | null = null;
-    if (skillsRow) {
-      skills = {
-        eventCode,
-        eventName: eventMeta.eventName,
-        eventDate,
-        teamRank: parseInt(skillsRow[0]) || null,
-        driverAttempts: parseInt(skillsRow[2]) || null,
-        driverScore: parseInt(skillsRow[3]) || null,
-        autoAttempts: parseInt(skillsRow[4]) || null,
-        autoScore: parseInt(skillsRow[5]) || null,
-        skillsScore: parseInt(skillsRow[6]) || null,
-      };
-    }
-
-    // ── Build match result ───────────────────────────────────────────────────
-    const parsedMatches: MatchRecord[] = divisionData.matches.map((m) => ({
-      matchName: m.matchName,
-      matchDate: parseMatchDate(m.matchDateText, eventDate),
-      redTeam: m.redTeam,
-      redScore: m.redScore,
-      blueTeam: m.blueTeam,
-      blueScore: m.blueScore,
-    }));
-
-    const matchesResult: EventMatchData = {
-      eventCode,
-      eventName: eventMeta.eventName,
-      eventDate,
-      matches: parsedMatches,
-      teamworkRank: divisionData.teamworkRank,
-      avgTeamworkScore: divisionData.avgTeamworkScore,
-      finalistRank: divisionData.finalistRank,
-      finalistScore: divisionData.finalistScore,
-    };
-
-    console.log(
-      `[BrowserScraper] Event ${eventCode}: ` +
-        `skills=${skills ? `rank#${skills.teamRank} driver=${skills.driverScore} auto=${skills.autoScore} total=${skills.skillsScore}` : "not found"}, ` +
-        `matches=${parsedMatches.length}, teamworkRank=${divisionData.teamworkRank}`
-    );
-
-    return { skills, matches: matchesResult };
-  } catch (err) {
-    console.error(
-      `[BrowserScraper] Error scraping event ${eventCode} for ${teamNumber}:`,
-      err
-    );
+  // Find the event by SKU in the team's event list
+  const events = await fetchTeamEvents(teamId);
+  const event = events.find((e) => e.sku === eventCode);
+  if (!event) {
+    console.warn(`[ApiScraper] Event ${eventCode} not found for team ${teamNumber}`);
     return { skills: null, matches: null };
-  } finally {
-    await page.close();
   }
+
+  const eventDate = event.start ? new Date(event.start) : null;
+  const divId = event.divisions?.[0]?.id ?? 1;
+
+  // Fetch skills for this event
+  const allSkills = await fetchTeamSkills(teamId);
+  const eventSkills = allSkills.filter((s) => s.event.code === eventCode);
+  const driverSkill = eventSkills.find((s) => s.type === "driver");
+  const autoSkill = eventSkills.find((s) => s.type === "programming");
+
+  let skills: EventSkillsData | null = null;
+  if (driverSkill || autoSkill) {
+    const driverScore = driverSkill?.score ?? 0;
+    const autoScore = autoSkill?.score ?? 0;
+    skills = {
+      eventCode,
+      eventName: event.name,
+      eventDate,
+      teamRank: driverSkill?.rank ?? autoSkill?.rank ?? null,
+      driverAttempts: driverSkill?.attempts ?? null,
+      driverScore: driverScore > 0 ? driverScore : null,
+      autoAttempts: autoSkill?.attempts ?? null,
+      autoScore: autoScore > 0 ? autoScore : null,
+      skillsScore: driverScore + autoScore > 0 ? driverScore + autoScore : null,
+    };
+  }
+
+  // Fetch matches, rankings, and finalist rankings in parallel
+  const [apiMatches, twRanking, finalistRanking] = await Promise.all([
+    fetchEventMatches(event.id, divId, teamId),
+    fetchTeamworkRanking(event.id, divId, teamId),
+    fetchFinalistRanking(event.id, divId, teamId),
+  ]);
+
+  // Convert API match format to our MatchRecord format
+  const matchRecords: MatchRecord[] = apiMatches.map((m) => {
+    const redAlliance = m.alliances.find((a) => a.color === "red");
+    const blueAlliance = m.alliances.find((a) => a.color === "blue");
+    const redTeam = redAlliance?.teams?.[0]?.team?.name ?? "";
+    const blueTeam = blueAlliance?.teams?.[0]?.team?.name ?? "";
+    const redScore = redAlliance?.score ?? 0;
+    const blueScore = blueAlliance?.score ?? 0;
+    const matchDate = m.started
+      ? new Date(m.started)
+      : m.scheduled
+      ? new Date(m.scheduled)
+      : eventDate;
+
+    return {
+      matchName: m.name,
+      matchDate,
+      redTeam,
+      redScore,
+      blueTeam,
+      blueScore,
+    };
+  });
+
+  const matchesResult: EventMatchData = {
+    eventCode,
+    eventName: event.name,
+    eventDate,
+    matches: matchRecords,
+    teamworkRank: twRanking?.rank ?? null,
+    avgTeamworkScore: twRanking?.average_points ?? null,
+    finalistRank: finalistRanking?.rank ?? null,
+    finalistScore: finalistRanking?.high_score ?? null,
+  };
+
+  console.log(
+    `[ApiScraper] Event ${eventCode}: ` +
+      `skills=${skills ? `driver=${skills.driverScore} auto=${skills.autoScore} total=${skills.skillsScore}` : "none"}, ` +
+      `matches=${matchRecords.length}, twRank=${twRanking?.rank ?? "n/a"}, ` +
+      `finalistRank=${finalistRanking?.rank ?? "n/a"}`
+  );
+
+  return { skills, matches: matchesResult };
 }
 
 // ─── Full team history sync ───────────────────────────────────────────────────
@@ -653,71 +384,84 @@ export async function syncTeamFullHistory(teamNumber: string): Promise<{
   const db = await getDb();
   if (!db) throw new Error("Database not available");
 
-  // Use a fresh dedicated browser for this sync to avoid state corruption
-  const dedicatedBrowser = await launchBrowser();
+  // Look up team ID once
+  const teamId = await getTeamId(teamNumber);
+  if (!teamId) throw new Error(`Team ${teamNumber} not found in RobotEvents API`);
+
   let skillsCount = 0;
   let matchCount = 0;
   let awardsCount = 0;
 
-  // Override getBrowser temporarily for this sync
-  const originalBrowser = _browser;
-  _browser = dedicatedBrowser;
-
-  let eventCodes: string[] = [];
-  let awards: AwardRecord[] = [];
-
-  try {
-    const teamPageData = await scrapeTeamPage(teamNumber);
-    eventCodes = teamPageData.eventCodes;
-    awards = teamPageData.awards;
-  } catch (e) {
-    console.error(`[BrowserScraper] Failed to get team page for ${teamNumber}:`, e);
-  }
+  // ── Fetch events and awards in parallel ──────────────────────────────────
+  const [events, apiAwards, allSkills] = await Promise.all([
+    fetchTeamEvents(teamId),
+    fetchTeamAwards(teamId),
+    fetchTeamSkills(teamId),
+  ]);
 
   // ── Save awards ──────────────────────────────────────────────────────────
-  if (awards.length > 0) {
-    // Delete existing awards for this team
+  if (apiAwards.length > 0) {
     await db.delete(teamAwards).where(eq(teamAwards.teamNumber, teamNumber));
 
-    for (const award of awards) {
+    for (const award of apiAwards) {
+      const qualifiesFor = award.qualifications?.length > 0
+        ? award.qualifications.join(", ")
+        : null;
       try {
         const awardRow: InsertTeamAward = {
           teamNumber,
-          eventCode: award.eventCode,
-          eventName: award.eventName,
-          awardName: award.awardName,
-          qualifiesFor: award.qualifiesFor,
+          eventCode: award.event.code,
+          eventName: award.event.name,
+          awardName: award.title,
+          qualifiesFor,
         };
         await db.insert(teamAwards).values(awardRow).onDuplicateKeyUpdate({
-          set: { qualifiesFor: award.qualifiesFor },
+          set: { qualifiesFor },
         });
         awardsCount++;
       } catch (err) {
-        console.error(`[BrowserScraper] Failed to save award:`, err);
+        console.error(`[ApiScraper] Failed to save award:`, err);
       }
     }
-    console.log(`[BrowserScraper] Saved ${awardsCount} awards for ${teamNumber}`);
+    console.log(`[ApiScraper] Saved ${awardsCount} awards for ${teamNumber}`);
   }
 
   // ── Scrape each event ────────────────────────────────────────────────────
-  for (const eventCode of eventCodes) {
+  for (const event of events) {
     try {
-      const { skills, matches } = await scrapeEventData(eventCode, teamNumber);
+      const eventCode = event.sku;
+      const eventDate = event.start ? new Date(event.start) : null;
+      const divId = event.divisions?.[0]?.id ?? 1;
+
+      // Skills for this event
+      const eventSkills = allSkills.filter((s) => s.event.code === eventCode);
+      const driverSkill = eventSkills.find((s) => s.type === "driver");
+      const autoSkill = eventSkills.find((s) => s.type === "programming");
+      const driverScore = driverSkill?.score ?? 0;
+      const autoScore = autoSkill?.score ?? 0;
+      const skillsScore = driverScore + autoScore > 0 ? driverScore + autoScore : null;
+
+      // Matches, rankings, finalist in parallel
+      const [apiMatches, twRanking, finalistRanking] = await Promise.all([
+        fetchEventMatches(event.id, divId, teamId),
+        fetchTeamworkRanking(event.id, divId, teamId),
+        fetchFinalistRanking(event.id, divId, teamId),
+      ]);
 
       // Upsert team_events row
       const eventRow: InsertTeamEvent = {
         teamNumber,
         eventCode,
-        eventName: skills?.eventName || matches?.eventName || eventCode,
-        eventDate: skills?.eventDate || matches?.eventDate || null,
-        eventRank: skills?.teamRank ?? null,
-        driverScore: skills?.driverScore ?? null,
-        autoScore: skills?.autoScore ?? null,
-        skillsScore: skills?.skillsScore ?? null,
-        teamworkRank: matches?.teamworkRank ?? null,
-        avgTeamworkScore: matches?.avgTeamworkScore ?? null,
-        finalistRank: matches?.finalistRank ?? null,
-        finalistScore: matches?.finalistScore ?? null,
+        eventName: event.name,
+        eventDate,
+        eventRank: driverSkill?.rank ?? autoSkill?.rank ?? null,
+        driverScore: driverScore > 0 ? driverScore : null,
+        autoScore: autoScore > 0 ? autoScore : null,
+        skillsScore,
+        teamworkRank: twRanking?.rank ?? null,
+        avgTeamworkScore: twRanking?.average_points ?? null,
+        finalistRank: finalistRanking?.rank ?? null,
+        finalistScore: finalistRanking?.high_score ?? null,
         wpApSp: null,
       };
 
@@ -739,11 +483,10 @@ export async function syncTeamFullHistory(teamNumber: string): Promise<{
           },
         });
 
-      if (skills) skillsCount++;
+      if (skillsScore) skillsCount++;
 
       // Insert match records
-      if (matches && matches.matches.length > 0) {
-        // Delete existing match records for this event/team to avoid duplicates
+      if (apiMatches.length > 0) {
         await db
           .delete(teamMatches)
           .where(
@@ -753,74 +496,81 @@ export async function syncTeamFullHistory(teamNumber: string): Promise<{
             )
           );
 
-        for (const m of matches.matches) {
-          // In VEX IQ, teamwork matches are COOPERATIVE - two teams partner together.
-          // Both teams in the match get the same score (it's not Red vs Blue competition).
-          // redTeam and blueTeam are the two partner teams; redScore and blueScore are the same score.
-          const isRed = m.redTeam === teamNumber;
-          const isBlue = m.blueTeam === teamNumber;
-          if (!isRed && !isBlue) continue; // team not in this match
+        for (const m of apiMatches) {
+          const redAlliance = m.alliances.find((a) => a.color === "red");
+          const blueAlliance = m.alliances.find((a) => a.color === "blue");
+          const redTeam = redAlliance?.teams?.[0]?.team?.name ?? "";
+          const blueTeam = blueAlliance?.teams?.[0]?.team?.name ?? "";
+          const redScore = redAlliance?.score ?? 0;
+          const blueScore = blueAlliance?.score ?? 0;
 
-          const partnerTeam = isRed ? m.blueTeam : m.redTeam;
-          // In VEX IQ, both scores should be the same (cooperative match score)
-          // Use the score from the team's side
-          const allianceScore = isRed ? m.redScore : m.blueScore;
-          // For VEX IQ, there's no opponent score - use the same score
-          // won/tied are not meaningful for VEX IQ teamwork - use null
+          const isRed = redTeam === teamNumber;
+          const isBlue = blueTeam === teamNumber;
+          if (!isRed && !isBlue) continue;
+
+          const partnerTeam = isRed ? blueTeam : redTeam;
+          const allianceScore = isRed ? redScore : blueScore;
+
+          const matchDate = m.started
+            ? new Date(m.started)
+            : m.scheduled
+            ? new Date(m.scheduled)
+            : eventDate;
+
           const matchRow: InsertTeamMatch = {
             teamNumber,
             eventCode,
-            eventName: matches.eventName,
-            matchName: m.matchName,
-            matchDate: m.matchDate,
-            partnerTeam,
+            eventName: event.name,
+            matchName: m.name,
+            matchDate,
+            partnerTeam: partnerTeam || null,
             allianceScore,
-            opponentScore: null,  // VEX IQ is cooperative, no opponent
-            won: null,            // Not applicable for VEX IQ teamwork
-            tied: null,           // Not applicable for VEX IQ teamwork
+            opponentScore: null,
+            won: null,
+            tied: null,
           };
 
           await db.insert(teamMatches).values(matchRow);
           matchCount++;
         }
       }
+
+      console.log(
+        `[ApiScraper] Event ${eventCode}: ${apiMatches.length} matches, ` +
+          `twRank=${twRanking?.rank ?? "n/a"}, finalistRank=${finalistRanking?.rank ?? "n/a"}`
+      );
     } catch (err) {
-      console.error(`[BrowserScraper] Failed to sync event ${eventCode}:`, err);
+      console.error(`[ApiScraper] Failed to sync event ${event.sku}:`, err);
     }
   }
 
-  // Restore original browser and close the dedicated one
+  // Stamp lastSyncedAt
   try {
-    await dedicatedBrowser.close();
+    await db
+      .update(teams)
+      .set({ lastSyncedAt: new Date() })
+      .where(eq(teams.teamNumber, teamNumber));
   } catch (e) {
-    console.warn("[BrowserScraper] Error closing dedicated browser:", e);
-  }
-  _browser = originalBrowser;
-
-  // Stamp lastSyncedAt on the team record
-  try {
-    const db = await getDb();
-    if (db) await db.update(teams).set({ lastSyncedAt: new Date() }).where(eq(teams.teamNumber, teamNumber));
-  } catch (e) {
-    console.warn(`[BrowserScraper] Could not stamp lastSyncedAt for ${teamNumber}:`, e);
+    console.warn(`[ApiScraper] Could not stamp lastSyncedAt for ${teamNumber}:`, e);
   }
 
   console.log(
-    `[BrowserScraper] Completed sync for ${teamNumber}: ${eventCodes.length} events, ${skillsCount} skills records, ${matchCount} match records, ${awardsCount} awards`
+    `[ApiScraper] Completed sync for ${teamNumber}: ${events.length} events, ` +
+      `${skillsCount} skills records, ${matchCount} match records, ${awardsCount} awards`
   );
+
   return {
-    eventsFound: eventCodes.length,
+    eventsFound: events.length,
     skillsRecords: skillsCount,
     matchRecords: matchCount,
     awardsFound: awardsCount,
   };
 }
 
-// ─── Date helpers ─────────────────────────────────────────────────────────────
+// ─── Date helpers (kept for any legacy callers) ───────────────────────────────
 
-function parseEventDate(dateText: string): Date | null {
+export function parseEventDate(dateText: string): Date | null {
   if (!dateText) return null;
-  // Format: "7-Mar-2026" or "4-Oct-2025"
   const months: Record<string, number> = {
     Jan: 0, Feb: 1, Mar: 2, Apr: 3, May: 4, Jun: 5,
     Jul: 6, Aug: 7, Sep: 8, Oct: 9, Nov: 10, Dec: 11,
@@ -831,21 +581,5 @@ function parseEventDate(dateText: string): Date | null {
   const month = months[parts[1]];
   const year = parseInt(parts[2]);
   if (isNaN(day) || month === undefined || isNaN(year)) return null;
-  return new Date(year, month, day);
-}
-
-function parseMatchDate(matchDateText: string, fallback: Date | null): Date | null {
-  if (!matchDateText) return fallback;
-  // Format: "Mar 7th at 7:30 PM" or "Oct 4th at 2:57 PM"
-  const months: Record<string, number> = {
-    Jan: 0, Feb: 1, Mar: 2, Apr: 3, May: 4, Jun: 5,
-    Jul: 6, Aug: 7, Sep: 8, Oct: 9, Nov: 10, Dec: 11,
-  };
-  const m = matchDateText.match(/([A-Za-z]+)\s+(\d+)/);
-  if (!m) return fallback;
-  const month = months[m[1]];
-  const day = parseInt(m[2]);
-  if (month === undefined || isNaN(day)) return fallback;
-  const year = fallback ? fallback.getFullYear() : new Date().getFullYear();
   return new Date(year, month, day);
 }

@@ -124,3 +124,6 @@
   - Summary row below chart lists all events with medal color dot + rank + score
   - Only renders when ≥2 events have finalist rank data
   - 5 new unit tests for buildTrendData logic (all 13 tests pass)
+
+## Session 17 Bug Fix — Production Scraper
+- [x] Replace Puppeteer/Chromium scraper with RobotEvents REST API v2 scraper (no browser needed, works in production)
