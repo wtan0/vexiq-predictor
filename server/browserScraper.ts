@@ -373,9 +373,23 @@ export async function scrapeEventData(
   return { skills, matches: matchesResult };
 }
 
+// ─── Progress event types ───────────────────────────────────────────────────
+
+export type SyncProgressEvent =
+  | { type: "start"; total: number; teamNumber: string }
+  | { type: "event"; current: number; total: number; eventName: string; eventCode: string; matchCount: number; hasSkills: boolean }
+  | { type: "awards"; count: number }
+  | { type: "done"; eventsFound: number; skillsRecords: number; matchRecords: number; awardsFound: number }
+  | { type: "error"; message: string };
+
+export type ProgressCallback = (event: SyncProgressEvent) => void;
+
 // ─── Full team history sync ───────────────────────────────────────────────────
 
-export async function syncTeamFullHistory(teamNumber: string): Promise<{
+export async function syncTeamFullHistory(
+  teamNumber: string,
+  onProgress?: ProgressCallback
+): Promise<{
   eventsFound: number;
   skillsRecords: number;
   matchRecords: number;
@@ -386,18 +400,25 @@ export async function syncTeamFullHistory(teamNumber: string): Promise<{
 
   // Look up team ID once
   const teamId = await getTeamId(teamNumber);
-  if (!teamId) throw new Error(`Team ${teamNumber} not found in RobotEvents API`);
+  if (!teamId) {
+    onProgress?.({ type: "error", message: `Team ${teamNumber} not found in RobotEvents API` });
+    throw new Error(`Team ${teamNumber} not found in RobotEvents API`);
+  }
 
   let skillsCount = 0;
   let matchCount = 0;
   let awardsCount = 0;
 
   // ── Fetch events and awards in parallel ──────────────────────────────────
+  onProgress?.({ type: "start", total: 0, teamNumber });
   const [events, apiAwards, allSkills] = await Promise.all([
     fetchTeamEvents(teamId),
     fetchTeamAwards(teamId),
     fetchTeamSkills(teamId),
   ]);
+
+  // Emit start with known total
+  onProgress?.({ type: "start", total: events.length, teamNumber });
 
   // ── Save awards ──────────────────────────────────────────────────────────
   if (apiAwards.length > 0) {
@@ -424,10 +445,13 @@ export async function syncTeamFullHistory(teamNumber: string): Promise<{
       }
     }
     console.log(`[ApiScraper] Saved ${awardsCount} awards for ${teamNumber}`);
+    onProgress?.({ type: "awards", count: awardsCount });
   }
 
   // ── Scrape each event ────────────────────────────────────────────────────
+  let eventIndex = 0;
   for (const event of events) {
+    eventIndex++;
     try {
       const eventCode = event.sku;
       const eventDate = event.start ? new Date(event.start) : null;
@@ -539,6 +563,15 @@ export async function syncTeamFullHistory(teamNumber: string): Promise<{
         `[ApiScraper] Event ${eventCode}: ${apiMatches.length} matches, ` +
           `twRank=${twRanking?.rank ?? "n/a"}, finalistRank=${finalistRanking?.rank ?? "n/a"}`
       );
+      onProgress?.({
+        type: "event",
+        current: eventIndex,
+        total: events.length,
+        eventName: event.name,
+        eventCode,
+        matchCount: apiMatches.length,
+        hasSkills: !!skillsScore,
+      });
     } catch (err) {
       console.error(`[ApiScraper] Failed to sync event ${event.sku}:`, err);
     }
@@ -558,6 +591,14 @@ export async function syncTeamFullHistory(teamNumber: string): Promise<{
     `[ApiScraper] Completed sync for ${teamNumber}: ${events.length} events, ` +
       `${skillsCount} skills records, ${matchCount} match records, ${awardsCount} awards`
   );
+
+  onProgress?.({
+    type: "done",
+    eventsFound: events.length,
+    skillsRecords: skillsCount,
+    matchRecords: matchCount,
+    awardsFound: awardsCount,
+  });
 
   return {
     eventsFound: events.length,

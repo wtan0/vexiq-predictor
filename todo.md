@@ -127,3 +127,9 @@
 
 ## Session 17 Bug Fix — Production Scraper
 - [x] Replace Puppeteer/Chromium scraper with RobotEvents REST API v2 scraper (no browser needed, works in production)
+
+## Session 18 Feature — Real-time Sync Progress
+- [x] SSE streaming endpoint /api/sync-stream/:teamNumber that emits progress events
+- [x] Refactor syncTeamFullHistory to accept a progress callback
+- [x] SyncProgressModal component with animated progress bar + step log
+- [x] Wire progress modal to the Re-sync button in TeamProfile

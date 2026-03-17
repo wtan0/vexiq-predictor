@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { SyncProgressModal } from "@/components/SyncProgressModal";
 import { useParams, useLocation } from "wouter";
 import { Award } from "lucide-react";
 import {
@@ -582,6 +583,8 @@ export default function TeamProfile() {
     { enabled: !!teamNumber }
   );
 
+  const [syncModalOpen, setSyncModalOpen] = useState(false);
+  // Legacy mutation kept for any direct callers; primary flow now uses SSE modal
   const syncFull = trpc.teams.syncFullHistory.useMutation({
     onSuccess: (data) => {
       const awardsMsg = (data as any).awardsFound > 0 ? `, ${(data as any).awardsFound} awards` : "";
@@ -595,6 +598,13 @@ export default function TeamProfile() {
     },
     onError: (e) => toast.error(`Sync failed: ${e.message}`),
   });
+  const handleStartSync = () => setSyncModalOpen(true);
+  const handleSyncDone = () => {
+    setSyncModalOpen(false);
+    refetchStats();
+    refetchProgress();
+    refetchAwards();
+  };
 
   if (statsLoading) {
     return (
@@ -805,13 +815,13 @@ export default function TeamProfile() {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => syncFull.mutate({ teamNumber: teamNumber! })}
-              disabled={syncFull.isPending}
+              onClick={handleStartSync}
+              disabled={syncModalOpen}
               className="border-border hover:bg-secondary"
-              title="Fetch full event history from RobotEvents (uses browser scraper)"
+              title="Fetch full event history from RobotEvents"
             >
-              {syncFull.isPending ? (
-                <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Fetching History…</>
+              {syncModalOpen ? (
+                <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Syncing…</>
               ) : (
                 <><History className="h-4 w-4 mr-2" /> Load History</>
               )}
@@ -846,17 +856,14 @@ export default function TeamProfile() {
           ))}
         </div>
 
-        {/* Sync prompt if no event data */}
-        {syncFull.isPending && (
-          <Card className="bg-card border-border mb-6">
-            <CardContent className="py-8 text-center">
-              <Loader2 className="h-10 w-10 mx-auto mb-3 animate-spin text-primary" />
-              <p className="text-foreground font-medium mb-1">Fetching season history from RobotEvents…</p>
-              <p className="text-sm text-muted-foreground">
-                This may take 30–90 seconds as we scrape each event page. Please wait.
-              </p>
-            </CardContent>
-          </Card>
+        {/* Sync progress modal */}
+        {teamNumber && (
+          <SyncProgressModal
+            teamNumber={teamNumber}
+            open={syncModalOpen}
+            onClose={() => setSyncModalOpen(false)}
+            onDone={handleSyncDone}
+          />
         )}
 
         {/* Season Progress Charts */}
@@ -1066,21 +1073,18 @@ export default function TeamProfile() {
               onRefresh={() => { refetchStats(); refetchProgress(); }}
             />
           </div>
-        ) : !syncFull.isPending ? (
+        ) : !syncModalOpen ? (
           <Card className="bg-card border-border">
             <CardContent className="py-16 text-center">
               <History className="h-12 w-12 mx-auto mb-4 text-muted-foreground/30" />
               <p className="text-foreground font-medium mb-2">No season history loaded yet</p>
-              <p className="text-sm text-muted-foreground mb-2 max-w-md mx-auto">
-                Click <strong>Load History</strong> to fetch this team's complete 2025-2026 season data from RobotEvents —
+              <p className="text-sm text-muted-foreground mb-4 max-w-md mx-auto">
+                Click <strong>Load History</strong> to fetch this team’s complete 2025-2026 season data from RobotEvents —
                 including per-event skills scores, teamwork match results, and rankings.
               </p>
-              <p className="text-xs text-muted-foreground mb-6 max-w-md mx-auto">
-                This uses a browser-based scraper to bypass Cloudflare. It may take 30–90 seconds depending on how many events the team attended.
-              </p>
               <Button
-                onClick={() => syncFull.mutate({ teamNumber: teamNumber! })}
-                disabled={syncFull.isPending}
+                onClick={handleStartSync}
+                disabled={syncModalOpen}
                 className="bg-primary hover:bg-primary/90"
               >
                 <History className="h-4 w-4 mr-2" />
