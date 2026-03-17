@@ -49,13 +49,13 @@ export const appRouter = router({
         return getSeasonProgress(input.teamNumber);
       }),
 
-    syncMatchData: publicProcedure
+    syncMatchData: protectedProcedure
       .input(z.object({ teamNumber: z.string().min(1).max(16) }))
       .mutation(async ({ input }) => {
         return syncTeamMatchData(input.teamNumber);
       }),
 
-    syncFullHistory: publicProcedure
+    syncFullHistory: protectedProcedure
       .input(z.object({ teamNumber: z.string().min(1).max(16) }))
       .mutation(async ({ input }) => {
         return syncTeamFullHistory(input.teamNumber);
@@ -74,7 +74,7 @@ export const appRouter = router({
         return rows;
       }),
 
-    syncSingleEvent: publicProcedure
+    syncSingleEvent: protectedProcedure
       .input(z.object({
         teamNumber: z.string().min(1).max(16),
         eventCode: z.string().min(1).max(32),
@@ -166,7 +166,7 @@ export const appRouter = router({
           .orderBy(teamMatches.matchDate);
       }),
 
-    syncTopTeams: publicProcedure
+    syncTopTeams: protectedProcedure
       .input(z.object({ count: z.number().min(1).max(20).default(5) }))
       .mutation(async ({ input }) => {
         const db = await getDb();
@@ -269,7 +269,7 @@ export const appRouter = router({
 
     // Kick off background scrape for all World qualifier teams
     // Returns immediately; poll syncProgress for updates
-    syncAllQualifiers: publicProcedure.mutation(async () => {
+    syncAllQualifiers: protectedProcedure.mutation(async ({ ctx: _ctx }) => {
       const db = await getDb();
       if (!db) return { started: false, message: "DB unavailable" };
 
@@ -546,7 +546,7 @@ export const appRouter = router({
       return { logs, teamCount: count };
     }),
 
-    triggerSkillsSync: publicProcedure.mutation(async () => {
+    triggerSkillsSync: protectedProcedure.mutation(async ({ ctx: _ctx }) => {
       // Run in background, return immediately
       syncSkillsData().catch((e) =>
         console.error("[Sync] Skills sync error:", e)
@@ -554,7 +554,7 @@ export const appRouter = router({
       return { started: true, message: "Skills data sync started in background" };
     }),
 
-    runSkillsSync: publicProcedure.mutation(async () => {
+    runSkillsSync: protectedProcedure.mutation(async ({ ctx: _ctx }) => {
       // Run synchronously and return result
       return syncSkillsData();
     }),

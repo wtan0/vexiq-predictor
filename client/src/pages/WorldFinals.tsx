@@ -2,9 +2,11 @@ import { useState } from "react";
 import { useLocation } from "wouter";
 import {
   Globe, Trophy, Medal, ChevronRight, Loader2, MapPin,
-  Building2, Zap, Target, TrendingUp, Filter, RefreshCw, Download, Star
+  Building2, Zap, Target, TrendingUp, Filter, RefreshCw, Download, Star, LogIn
 } from "lucide-react";
 import { toast } from "sonner";
+import { useAuth } from "@/_core/hooks/useAuth";
+import { getLoginUrl } from "@/const";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -73,6 +75,7 @@ export default function WorldFinals() {
   const qualifierSet = new Set(qualifierTeams ?? []);
 
   const [showSyncPanel, setShowSyncPanel] = useState(false);
+  const { user } = useAuth();
 
   // Poll sync progress every 4s when panel is open
   const { data: syncProgress, refetch: refetchProgress } = trpc.worldFinals.syncProgress.useQuery(
@@ -303,34 +306,48 @@ export default function WorldFinals() {
             >
               <RefreshCw className="h-3.5 w-3.5" />
             </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => syncTop.mutate({ count: 5 })}
-              disabled={syncTop.isPending}
-              className="h-8 border-primary/40 text-primary hover:bg-primary/10"
-              title="Fetch match history for top 5 teams from RobotEvents"
-            >
-              {syncTop.isPending ? (
-                <><Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> Syncing…</>
-              ) : (
-                <><Download className="h-3.5 w-3.5 mr-1" /> Sync Top 5</>  
-              )}
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => syncAllQualifiers.mutate()}
-              disabled={syncAllQualifiers.isPending || syncRunning > 0}
-              className="h-8 border-amber-500/40 text-amber-400 hover:bg-amber-500/10 gap-1.5"
-              title="Pre-scrape full match history for all World Championship qualifier teams"
-            >
-              {syncAllQualifiers.isPending || syncRunning > 0 ? (
-                <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Syncing Qualifiers…</>
-              ) : (
-                <><Star className="h-3.5 w-3.5 fill-amber-400" /> Sync All Qualifiers</>
-              )}
-            </Button>
+            {user ? (
+              <>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => syncTop.mutate({ count: 5 })}
+                  disabled={syncTop.isPending}
+                  className="h-8 border-primary/40 text-primary hover:bg-primary/10"
+                  title="Fetch match history for top 5 teams from RobotEvents"
+                >
+                  {syncTop.isPending ? (
+                    <><Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> Syncing…</>
+                  ) : (
+                    <><Download className="h-3.5 w-3.5 mr-1" /> Sync Top 5</>
+                  )}
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => syncAllQualifiers.mutate()}
+                  disabled={syncAllQualifiers.isPending || syncRunning > 0}
+                  className="h-8 border-amber-500/40 text-amber-400 hover:bg-amber-500/10 gap-1.5"
+                  title="Pre-scrape full match history for all World Championship qualifier teams"
+                >
+                  {syncAllQualifiers.isPending || syncRunning > 0 ? (
+                    <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Syncing Qualifiers…</>
+                  ) : (
+                    <><Star className="h-3.5 w-3.5 fill-amber-400" /> Sync All Qualifiers</>
+                  )}
+                </Button>
+              </>
+            ) : (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => { window.location.href = getLoginUrl(); }}
+                className="h-8 border-border hover:bg-secondary gap-1.5 text-muted-foreground"
+                title="Sign in to sync data"
+              >
+                <LogIn className="h-3.5 w-3.5" /> Sign in to sync
+              </Button>
+            )}
             {syncTotal > 0 && (
               <Button
                 size="sm"

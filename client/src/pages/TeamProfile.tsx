@@ -6,8 +6,10 @@ import {
   Trophy, MapPin, Building2, TrendingUp, Swords, ArrowLeft,
   RefreshCw, Loader2, Target, Zap, Users, BarChart3,
   Calendar, ChevronDown, ChevronUp, History, Star,
-  CheckCircle2, XCircle, MinusCircle, AlertCircle
+  CheckCircle2, XCircle, MinusCircle, AlertCircle, LogIn
 } from "lucide-react";
+import { useAuth } from "@/_core/hooks/useAuth";
+import { getLoginUrl } from "@/const";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -583,6 +585,7 @@ export default function TeamProfile() {
     { enabled: !!teamNumber }
   );
 
+  const { user } = useAuth();
   const [syncModalOpen, setSyncModalOpen] = useState(false);
   // Legacy mutation kept for any direct callers; primary flow now uses SSE modal
   const syncFull = trpc.teams.syncFullHistory.useMutation({
@@ -812,20 +815,32 @@ export default function TeamProfile() {
             </div>
           </div>
           <div className="flex gap-2 flex-wrap">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleStartSync}
-              disabled={syncModalOpen}
-              className="border-border hover:bg-secondary"
-              title="Fetch full event history from RobotEvents"
-            >
-              {syncModalOpen ? (
-                <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Syncing…</>
-              ) : (
-                <><History className="h-4 w-4 mr-2" /> Load History</>
-              )}
-            </Button>
+            {user ? (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleStartSync}
+                disabled={syncModalOpen}
+                className="border-border hover:bg-secondary"
+                title="Fetch full event history from RobotEvents"
+              >
+                {syncModalOpen ? (
+                  <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Syncing…</>
+                ) : (
+                  <><History className="h-4 w-4 mr-2" /> Load History</>
+                )}
+              </Button>
+            ) : (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => { window.location.href = getLoginUrl(); }}
+                className="border-border hover:bg-secondary"
+                title="Sign in to load history"
+              >
+                <LogIn className="h-4 w-4 mr-2" /> Sign in to load history
+              </Button>
+            )}
             <Button
               size="sm"
               onClick={() => navigate(`/compare?teamA=${teamNumber}`)}
@@ -1082,14 +1097,24 @@ export default function TeamProfile() {
                 Click <strong>Load History</strong> to fetch this team’s complete 2025-2026 season data from RobotEvents —
                 including per-event skills scores, teamwork match results, and rankings.
               </p>
-              <Button
-                onClick={handleStartSync}
-                disabled={syncModalOpen}
-                className="bg-primary hover:bg-primary/90"
-              >
-                <History className="h-4 w-4 mr-2" />
-                Load Season History
-              </Button>
+              {user ? (
+                <Button
+                  onClick={handleStartSync}
+                  disabled={syncModalOpen}
+                  className="bg-primary hover:bg-primary/90"
+                >
+                  <History className="h-4 w-4 mr-2" />
+                  Load Season History
+                </Button>
+              ) : (
+                <Button
+                  onClick={() => { window.location.href = getLoginUrl(); }}
+                  className="bg-primary hover:bg-primary/90"
+                >
+                  <LogIn className="h-4 w-4 mr-2" />
+                  Sign in to load history
+                </Button>
+              )}
             </CardContent>
           </Card>
         ) : null}

@@ -163,3 +163,11 @@
 - [x] Investigated: error comes from Manus OAuth portal (platform-level restriction, not app code)
 - [x] App code has no platform invite API calls — invite links are already self-contained app-level tokens
 - [x] Updated InviteModal: amber warning banner explaining platform restriction; clarified links work for existing Manus users only; added instructions to use Manus Management UI for new users without accounts
+
+## Session 23 Feature — Public Read-Only Access
+- [x] Audited: all read-only procedures already publicProcedure; no frontend auth gates on view pages
+- [x] Protected all sync mutations with protectedProcedure (syncFullHistory, syncMatchData, syncSingleEvent, syncTopTeams, syncAllQualifiers, triggerSkillsSync, runSkillsSync)
+- [x] Home.tsx: Sync Data button gated — shows "Sign in to sync" for logged-out users
+- [x] WorldFinals.tsx: Sync Top 5 + Sync All Qualifiers gated — shows "Sign in to sync" for logged-out users
+- [x] TeamProfile.tsx: Load History buttons (header + empty state) gated — shows "Sign in to load history" for logged-out users
+- [x] All 42 tests pass

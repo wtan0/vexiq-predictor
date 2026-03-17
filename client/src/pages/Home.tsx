@@ -212,18 +212,30 @@ export default function Home() {
               </div>
             )}
           </div>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => triggerSync.mutate()}
-            disabled={triggerSync.isPending || lastSync?.status === "running"}
-            className="border-border hover:bg-secondary text-sm"
-          >
-            <RefreshCw
-              className={`h-3.5 w-3.5 mr-1.5 ${triggerSync.isPending ? "animate-spin" : ""}`}
-            />
-            {lastSync?.status === "running" ? "Syncing..." : "Sync Data"}
-          </Button>
+          {user ? (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => triggerSync.mutate()}
+              disabled={triggerSync.isPending || lastSync?.status === "running"}
+              className="border-border hover:bg-secondary text-sm"
+            >
+              <RefreshCw
+                className={`h-3.5 w-3.5 mr-1.5 ${triggerSync.isPending ? "animate-spin" : ""}`}
+              />
+              {lastSync?.status === "running" ? "Syncing..." : "Sync Data"}
+            </Button>
+          ) : (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => { window.location.href = getLoginUrl(); }}
+              className="border-border hover:bg-secondary text-sm"
+            >
+              <LogIn className="h-3.5 w-3.5 mr-1.5" />
+              Sign in to sync
+            </Button>
+          )}
         </div>
       </section>
 
