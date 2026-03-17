@@ -182,20 +182,8 @@ export async function scrapeTeamPage(teamNumber: string): Promise<{
         // Use .page-link elements for reliable selection
         const pageLinks = Array.from(document.querySelectorAll(".page-link"));
 
-        // Find the "»" next button — note: text may have surrounding spaces
-        const nextBtn = pageLinks.find((el) => {
-          const text = el.textContent?.trim();
-          return text === "»" || text === "›" || text === "Next";
-        });
-        if (nextBtn) {
-          // Check if the parent .page-item is disabled
-          const parentLi = nextBtn.closest(".page-item");
-          if (parentLi && parentLi.classList.contains("disabled")) return false;
-          (nextBtn as HTMLElement).click();
-          return true;
-        }
-
-        // Fallback: click the next page number link
+        // PRIORITY 1: Click the next numbered page link (e.g. "2" when on page 1)
+        // This is safer than clicking "»" which jumps to the LAST page, not next page
         const nextPageLink = pageLinks.find((el) => {
           const text = el.textContent?.trim();
           return text === String(currentPage + 1);
@@ -207,17 +195,20 @@ export async function scrapeTeamPage(teamNumber: string): Promise<{
           return true;
         }
 
-        // Last resort: any a/button with next-page text
-        const allLinks = Array.from(document.querySelectorAll("a, button"));
-        const fallbackNext = allLinks.find((el) => {
+        // PRIORITY 2: Look for a "›" (single chevron = next page) button
+        // Note: "»" is the LAST PAGE button — do NOT use it for sequential pagination
+        const singleNextBtn = pageLinks.find((el) => {
           const text = el.textContent?.trim();
-          return text === "»" || text === "›" || text === String(currentPage + 1);
+          return text === "›" || text === "Next";
         });
-        if (fallbackNext) {
-          (fallbackNext as HTMLElement).click();
+        if (singleNextBtn) {
+          const parentLi = singleNextBtn.closest(".page-item");
+          if (parentLi && parentLi.classList.contains("disabled")) return false;
+          (singleNextBtn as HTMLElement).click();
           return true;
         }
 
+        // No next page found
         return false;
       }, pageNum);
 
@@ -335,22 +326,29 @@ export async function scrapeTeamPage(teamNumber: string): Promise<{
         awards.push(...pageAwards);
 
         // Check for next page in awards
+        // IMPORTANT: Use numbered page link first — "»" jumps to LAST page, not next
         const hasNextAwardsPage = await page.evaluate((currentPage: number) => {
-          const paginationLinks = Array.from(document.querySelectorAll("a, button"));
-          const nextBtn = paginationLinks.find((el) => {
-            const text = el.textContent?.trim();
-            return text === "»" || text === "›" || text === "Next";
-          });
-          if (nextBtn && !(nextBtn as HTMLElement).classList.contains("disabled")) {
-            (nextBtn as HTMLElement).click();
-            return true;
-          }
-          const pageNumLink = paginationLinks.find((el) => {
+          const pageLinks = Array.from(document.querySelectorAll(".page-link"));
+          // Priority 1: numbered next page
+          const nextPageLink = pageLinks.find((el) => {
             const text = el.textContent?.trim();
             return text === String(currentPage + 1);
           });
-          if (pageNumLink) {
-            (pageNumLink as HTMLElement).click();
+          if (nextPageLink) {
+            const parentLi = nextPageLink.closest(".page-item");
+            if (parentLi && parentLi.classList.contains("disabled")) return false;
+            (nextPageLink as HTMLElement).click();
+            return true;
+          }
+          // Priority 2: single chevron "›" (next page, not last page)
+          const singleNext = pageLinks.find((el) => {
+            const text = el.textContent?.trim();
+            return text === "›" || text === "Next";
+          });
+          if (singleNext) {
+            const parentLi = singleNext.closest(".page-item");
+            if (parentLi && parentLi.classList.contains("disabled")) return false;
+            (singleNext as HTMLElement).click();
             return true;
           }
           return false;

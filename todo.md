@@ -78,3 +78,8 @@
 
 ## Session 7 Bug Fixes
 - [x] Fix podium: #1 should have highest win probability; fix podium layout and rank labels
+
+## Session 8 Bug Fixes
+- [x] Fix scraper pagination: reliably iterate ALL pages for teams with multi-page match records (e.g. 81777A)
+  - Root cause: "»" is the LAST PAGE button (not next page) — was skipping page 2 and jumping to last
+  - Fix: click numbered page link (e.g. "2") first; fall back to "›" single chevron only
