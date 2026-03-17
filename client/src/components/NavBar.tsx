@@ -1,6 +1,10 @@
+import { useState } from "react";
 import { Link, useLocation } from "wouter";
-import { Trophy, Search, Swords, Globe, Home } from "lucide-react";
+import { Trophy, Search, Swords, Globe, Home, Link2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/_core/hooks/useAuth";
+import { Button } from "@/components/ui/button";
+import { InviteModal } from "@/components/InviteModal";
 
 const navItems = [
   { href: "/", label: "Home", icon: Home },
@@ -11,8 +15,11 @@ const navItems = [
 
 export default function NavBar() {
   const [location] = useLocation();
+  const { user } = useAuth();
+  const [inviteOpen, setInviteOpen] = useState(false);
 
   return (
+    <>
     <header className="sticky top-0 z-50 border-b border-border bg-card/80 backdrop-blur-md">
       <div className="container flex h-16 items-center justify-between">
         {/* Logo */}
@@ -27,7 +34,7 @@ export default function NavBar() {
         </Link>
 
         {/* Desktop Nav */}
-        <nav className="hidden md:flex items-center gap-1">
+          <nav className="hidden md:flex items-center gap-1">
           {navItems.map(({ href, label, icon: Icon }) => (
             <Link
               key={href}
@@ -43,6 +50,17 @@ export default function NavBar() {
               {label}
             </Link>
           ))}
+          {user && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="ml-1 flex items-center gap-1.5 text-muted-foreground hover:text-foreground"
+              onClick={() => setInviteOpen(true)}
+            >
+              <Link2 className="h-4 w-4" />
+              <span className="text-sm font-medium">Invite</span>
+            </Button>
+          )}
         </nav>
 
         {/* Mobile Nav */}
@@ -61,8 +79,19 @@ export default function NavBar() {
               <Icon className="h-5 w-5" />
             </Link>
           ))}
+          {user && (
+            <button
+              className="flex items-center justify-center rounded-md p-2 text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
+              onClick={() => setInviteOpen(true)}
+              title="Invite by link"
+            >
+              <Link2 className="h-5 w-5" />
+            </button>
+          )}
         </nav>
       </div>
     </header>
+    <InviteModal open={inviteOpen} onClose={() => setInviteOpen(false)} />
+    </>
   );
 }

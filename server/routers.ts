@@ -12,7 +12,7 @@ import {
 } from "./analytics";
 import { syncSkillsData, syncTeamMatchData } from "./scraper";
 import { syncTeamFullHistory, scrapeEventData } from "./browserScraper";
-import { teamMatches, teamEvents, teamSyncJobs, teamAwards, teams } from "../drizzle/schema";
+import { teamMatches, teamEvents, teamSyncJobs, teamAwards, teams, invitations, inviteUses } from "../drizzle/schema";
 import { getDb } from "./db";
 import { asc, sql, eq, and, desc } from "drizzle-orm";
 
@@ -338,7 +338,119 @@ export const appRouter = router({
     }),
   }),
 
-  // ─── Data Sync ─────────────────────────────────────────────────────────────
+  // ─── Invite System ──────────────────────────────────────────────────────────
+  invites: router({
+    /** Create a new invite link (protected — must be logged in) */
+    create: protectedProcedure
+      .input(z.object({
+        label: z.string().max(128).optional(),
+        expiresInDays: z.number().int().min(1).max(365).optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const db = await getDb();
+        if (!db) throw new Error("Database not available");
+        const { randomBytes } = await import("crypto");
+        const token = randomBytes(32).toString("hex");
+        const expiresAt = input.expiresInDays
+          ? new Date(Date.now() + input.expiresInDays * 86_400_000)
+          : undefined;
+        await db.insert(invitations).values({
+          token,
+          label: input.label ?? null,
+          createdByOpenId: ctx.user.openId,
+          createdByName: ctx.user.name ?? null,
+          status: "active",
+          useCount: 0,
+          expiresAt,
+        });
+        return { token };
+      }),
+
+    /** List all invites created by the current user */
+    list: protectedProcedure.query(async ({ ctx }) => {
+      const db = await getDb();
+      if (!db) return [];
+      const rows = await db
+        .select()
+        .from(invitations)
+        .where(eq(invitations.createdByOpenId, ctx.user.openId))
+        .orderBy(desc(invitations.createdAt));
+      return rows;
+    }),
+
+    /** Revoke an invite (only the creator can revoke) */
+    revoke: protectedProcedure
+      .input(z.object({ token: z.string() }))
+      .mutation(async ({ ctx, input }) => {
+        const db = await getDb();
+        if (!db) throw new Error("Database not available");
+        await db
+          .update(invitations)
+          .set({ status: "revoked" })
+          .where(
+            and(
+              eq(invitations.token, input.token),
+              eq(invitations.createdByOpenId, ctx.user.openId)
+            )
+          );
+        return { success: true };
+      }),
+
+    /** Validate an invite token (public — used on the accept page before login) */
+    validate: publicProcedure
+      .input(z.object({ token: z.string() }))
+      .query(async ({ input }) => {
+        const db = await getDb();
+        if (!db) return { valid: false as const, reason: "not_found" as const };
+        const [inv] = await db
+          .select()
+          .from(invitations)
+          .where(eq(invitations.token, input.token))
+          .limit(1);
+        if (!inv) return { valid: false as const, reason: "not_found" as const };
+        if (inv.status === "revoked") return { valid: false as const, reason: "revoked" as const };
+        if (inv.expiresAt && inv.expiresAt < new Date()) return { valid: false as const, reason: "expired" as const };
+        return {
+          valid: true as const,
+          label: inv.label,
+          createdByName: inv.createdByName,
+          useCount: inv.useCount,
+        };
+      }),
+
+    /** Accept an invite (protected — user must be logged in first) */
+    accept: protectedProcedure
+      .input(z.object({ token: z.string() }))
+      .mutation(async ({ ctx, input }) => {
+        const db = await getDb();
+        if (!db) throw new Error("Database not available");
+        const [inv] = await db
+          .select()
+          .from(invitations)
+          .where(eq(invitations.token, input.token))
+          .limit(1);
+        if (!inv) throw new Error("Invite not found");
+        if (inv.status === "revoked") throw new Error("This invite has been revoked");
+        if (inv.expiresAt && inv.expiresAt < new Date()) throw new Error("This invite has expired");
+        // Record use (ignore duplicate — idempotent)
+        try {
+          await db.insert(inviteUses).values({
+            invitationId: inv.id,
+            acceptedByOpenId: ctx.user.openId,
+            acceptedByName: ctx.user.name ?? null,
+          });
+          await db
+            .update(invitations)
+            .set({ useCount: sql`${invitations.useCount} + 1` })
+            .where(eq(invitations.id, inv.id));
+        } catch {
+          // Duplicate use — already accepted, that's fine
+        }
+        return { success: true, createdByName: inv.createdByName };
+      }),
+  }),
+
+  // ─── Data Sync ──────────────────────────────────────────────────────────
   sync: router({
     status: publicProcedure.query(async () => {
       const [logs, count] = await Promise.all([getLastSyncStatus(), getTeamCount()]);

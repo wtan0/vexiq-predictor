@@ -201,3 +201,53 @@ export const syncLog = mysqlTable("sync_log", {
 
 export type SyncLog = typeof syncLog.$inferSelect;
 export type InsertSyncLog = typeof syncLog.$inferInsert;
+
+// ─── Invite System ──────────────────────────────────────────────────────────
+
+/** Shareable invite tokens — anyone with the link can join after logging in */
+export const invitations = mysqlTable(
+  "invitations",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    /** Cryptographically random token (32 hex bytes = 64 chars) */
+    token: varchar("token", { length: 64 }).notNull().unique(),
+    /** Display label set by the creator, e.g. "For Coach Smith" */
+    label: varchar("label", { length: 128 }),
+    /** openId of the user who created this invite */
+    createdByOpenId: varchar("createdByOpenId", { length: 64 }).notNull(),
+    /** Display name of the creator */
+    createdByName: text("createdByName"),
+    /** "active" | "revoked" */
+    status: mysqlEnum("status", ["active", "revoked"]).notNull().default("active"),
+    /** How many times this link has been used */
+    useCount: int("useCount").notNull().default(0),
+    /** Optional expiry — null means never expires */
+    expiresAt: timestamp("expiresAt"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  (t) => [
+    index("idx_invitations_token").on(t.token),
+    index("idx_invitations_createdBy").on(t.createdByOpenId),
+  ]
+);
+export type Invitation = typeof invitations.$inferSelect;
+export type InsertInvitation = typeof invitations.$inferInsert;
+
+/** Tracks which users accepted which invite */
+export const inviteUses = mysqlTable(
+  "invite_uses",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    invitationId: int("invitationId").notNull(),
+    /** openId of the user who accepted */
+    acceptedByOpenId: varchar("acceptedByOpenId", { length: 64 }).notNull(),
+    acceptedByName: text("acceptedByName"),
+    acceptedAt: timestamp("acceptedAt").defaultNow().notNull(),
+  },
+  (t) => [
+    index("idx_invite_uses_invitationId").on(t.invitationId),
+    uniqueIndex("uniq_invite_uses").on(t.invitationId, t.acceptedByOpenId),
+  ]
+);
+export type InviteUse = typeof inviteUses.$inferSelect;
+export type InsertInviteUse = typeof inviteUses.$inferInsert;

@@ -9,6 +9,7 @@ import TeamSearch from "./pages/TeamSearch";
 import TeamProfile from "./pages/TeamProfile";
 import HeadToHead from "./pages/HeadToHead";
 import WorldFinals from "./pages/WorldFinals";
+import InviteAccept from "./pages/InviteAccept";
 import NavBar from "./components/NavBar";
 
 function Router() {
@@ -21,6 +22,7 @@ function Router() {
         <Route path="/team/:teamNumber" component={TeamProfile} />
         <Route path="/compare" component={HeadToHead} />
         <Route path="/world-finals" component={WorldFinals} />
+        <Route path="/invite/:token" component={InviteAccept} />
         <Route path="/404" component={NotFound} />
         <Route component={NotFound} />
       </Switch>

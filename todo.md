@@ -133,3 +133,12 @@
 - [x] Refactor syncTeamFullHistory to accept a progress callback
 - [x] SyncProgressModal component with animated progress bar + step log
 - [x] Wire progress modal to the Re-sync button in TeamProfile
+
+## Session 19 Feature — Invite by Link (Copy-Link)
+- [x] invitations + invite_uses tables in drizzle/schema.ts (token, label, status, useCount, expiresAt)
+- [x] Migration SQL generated and applied
+- [x] tRPC procedures: invites.create, invites.list, invites.revoke, invites.validate, invites.accept
+- [x] InviteModal component (create link with optional label/expiry, copy, revoke, usage count)
+- [x] /invite/:token accept page (validates token, prompts login if needed, auto-accepts after login)
+- [x] Invite button in NavBar (visible only when logged in)
+- [x] 10 unit tests for invite token and validation logic (32 total tests pass)
