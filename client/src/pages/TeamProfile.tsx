@@ -53,6 +53,8 @@ interface EventHistoryTableProps {
     partnerTeams: string[];
     wpApSp: string | null;
     avgTeamworkScore: number | null;
+    finalistRank: number | null;
+    finalistScore: number | null;
   }>;
   teamNumber: string;
   navigate: (path: string) => void;
@@ -107,6 +109,7 @@ function EventHistoryTable({ progress, teamNumber, navigate, onRefresh }: EventH
                 <th className="text-center px-3 py-3 text-muted-foreground font-medium">Total</th>
                 <th className="text-center px-3 py-3 text-muted-foreground font-medium">Skills Rank</th>
                 <th className="text-center px-3 py-3 text-muted-foreground font-medium">TW Rank</th>
+                <th className="text-center px-3 py-3 text-muted-foreground font-medium">Finalist</th>
                 <th className="text-center px-3 py-3 text-muted-foreground font-medium">Avg Match</th>
                 <th className="text-center px-3 py-3 text-muted-foreground font-medium">Best Match</th>
                 <th className="text-left px-3 py-3 text-muted-foreground font-medium">Partners</th>
@@ -177,6 +180,25 @@ function EventHistoryTable({ progress, teamNumber, navigate, onRefresh }: EventH
                           <Badge variant="outline" className={`text-xs font-mono ${p.teamworkRank <= 3 ? "border-green-400/50 text-green-400" : "border-border text-muted-foreground"}`}>
                             #{p.teamworkRank}
                           </Badge>
+                        ) : (
+                          <span className="text-muted-foreground">—</span>
+                        )}
+                      </td>
+                      <td className="px-3 py-3 text-center">
+                        {p.finalistRank != null ? (
+                          <div className="flex flex-col items-center gap-0.5">
+                            <Badge variant="outline" className={`text-xs font-mono ${
+                              p.finalistRank === 1 ? "border-amber-400/70 text-amber-400 bg-amber-400/10" :
+                              p.finalistRank === 2 ? "border-slate-300/70 text-slate-300 bg-slate-300/10" :
+                              p.finalistRank === 3 ? "border-orange-400/70 text-orange-400 bg-orange-400/10" :
+                              "border-border text-muted-foreground"
+                            }`}>
+                              #{p.finalistRank}
+                            </Badge>
+                            {p.finalistScore != null && (
+                              <span className="text-xs text-muted-foreground font-mono">{p.finalistScore}</span>
+                            )}
+                          </div>
                         ) : (
                           <span className="text-muted-foreground">—</span>
                         )}

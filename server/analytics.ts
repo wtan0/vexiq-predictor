@@ -75,6 +75,10 @@ export interface SeasonProgressPoint {
   matchTotal: number;
   /** Partner teams encountered at this event */
   partnerTeams: string[];
+  /** Finalist ranking at this event (from the Finalist Ranking table) */
+  finalistRank: number | null;
+  /** Score achieved in the final round */
+  finalistScore: number | null;
 }
 
 export interface WorldFinalsContender {
@@ -372,6 +376,8 @@ export async function getSeasonProgress(
           bestMatchScore: null,
           matchTotal: 0,
           partnerTeams: [],
+          finalistRank: null,
+          finalistScore: null,
         });
       }
       return points;
@@ -415,6 +421,8 @@ export async function getSeasonProgress(
       bestMatchScore,
       matchTotal: evMatches.length,
       partnerTeams,
+      finalistRank: ev.finalistRank ?? null,
+      finalistScore: ev.finalistScore ?? null,
     };
   });
 }

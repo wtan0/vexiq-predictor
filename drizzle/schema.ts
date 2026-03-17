@@ -84,6 +84,10 @@ export const teamEvents = mysqlTable(
     teamworkRank: int("teamworkRank"),
     /** Average teamwork score at this event */
     avgTeamworkScore: float("avgTeamworkScore"),
+    /** Finalist ranking at this event (from the Finalist Ranking table) */
+    finalistRank: int("finalistRank"),
+    /** Score in the final round (from the Finalist Ranking table) */
+    finalistScore: int("finalistScore"),
     /** Win/Autonomous/Points record e.g. "5/2/1" */
     wpApSp: varchar("wpApSp", { length: 32 }),
     createdAt: timestamp("createdAt").defaultNow().notNull(),

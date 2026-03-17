@@ -111,6 +111,8 @@ export interface EventMatchData {
   matches: MatchRecord[];
   teamworkRank: number | null;
   avgTeamworkScore: number | null;
+  finalistRank: number | null;
+  finalistScore: number | null;
 }
 
 export interface AwardRecord {
@@ -549,7 +551,37 @@ export async function scrapeEventData(
         }
       }
 
-      return { matches, teamworkRank, avgTeamworkScore };
+      // --- Finalist Ranking (Rank | Team | Name | Score) ---
+      // This table has exactly 4 columns: Rank, Team, Name, Score (no "Avg", no "Match")
+      let finalistRank: number | null = null;
+      let finalistScore: number | null = null;
+      for (const t of tables) {
+        const headers = Array.from(t.querySelectorAll("th")).map(
+          (th) => th.textContent?.trim() || ""
+        );
+        if (
+          headers.length === 4 &&
+          headers[0] === "Rank" &&
+          headers[1] === "Team" &&
+          headers[2] === "Name" &&
+          headers[3] === "Score"
+        ) {
+          const rows = Array.from(t.querySelectorAll("tbody tr"));
+          for (const row of rows) {
+            const cells = Array.from(row.querySelectorAll("td")).map(
+              (td) => td.textContent?.trim() || ""
+            );
+            if (cells[1] === team) {
+              finalistRank = parseInt(cells[0]) || null;
+              finalistScore = parseInt(cells[3]) || null;
+              break;
+            }
+          }
+          break;
+        }
+      }
+
+      return { matches, teamworkRank, avgTeamworkScore, finalistRank, finalistScore };
     }, teamNumber);
 
     // ── Parse dates ──────────────────────────────────────────────────────────
@@ -588,6 +620,8 @@ export async function scrapeEventData(
       matches: parsedMatches,
       teamworkRank: divisionData.teamworkRank,
       avgTeamworkScore: divisionData.avgTeamworkScore,
+      finalistRank: divisionData.finalistRank,
+      finalistScore: divisionData.finalistScore,
     };
 
     console.log(
@@ -682,6 +716,8 @@ export async function syncTeamFullHistory(teamNumber: string): Promise<{
         skillsScore: skills?.skillsScore ?? null,
         teamworkRank: matches?.teamworkRank ?? null,
         avgTeamworkScore: matches?.avgTeamworkScore ?? null,
+        finalistRank: matches?.finalistRank ?? null,
+        finalistScore: matches?.finalistScore ?? null,
         wpApSp: null,
       };
 
@@ -698,6 +734,8 @@ export async function syncTeamFullHistory(teamNumber: string): Promise<{
             skillsScore: eventRow.skillsScore,
             teamworkRank: eventRow.teamworkRank,
             avgTeamworkScore: eventRow.avgTeamworkScore,
+            finalistRank: eventRow.finalistRank,
+            finalistScore: eventRow.finalistScore,
           },
         });
 

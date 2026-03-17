@@ -99,3 +99,8 @@
 
 ## Session 11 Features
 - [x] Highlight the final round match (highest-numbered TeamWork match) in expanded match rows and sparkline
+
+## Session 12 Features
+- [x] Add finalistRank + finalistScore columns to team_events table
+- [x] Update scraper to capture Finalist Ranking table (Rank|Team|Name|Score, 4-col exact match)
+- [x] Display finalist rank/score in event history row (gold/silver/bronze badges + score)
