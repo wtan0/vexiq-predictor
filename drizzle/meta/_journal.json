@@ -36,6 +36,20 @@
       "when": 1773694254361,
       "tag": "0004_exotic_the_phantom",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "5",
+      "when": 1773706023646,
+      "tag": "0005_aspiring_mandrill",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "5",
+      "when": 1773706323815,
+      "tag": "0006_chemical_madripoor",
+      "breakpoints": true
     }
   ]
 }

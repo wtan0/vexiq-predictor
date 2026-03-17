@@ -1,0 +1,1 @@
+ALTER TABLE `team_awards` MODIFY COLUMN `qualifiesFor` varchar(512);

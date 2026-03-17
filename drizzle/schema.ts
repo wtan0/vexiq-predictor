@@ -139,7 +139,7 @@ export const teamAwards = mysqlTable(
     /** Award name e.g. "Excellence Award (VIQRC)" */
     awardName: varchar("awardName", { length: 128 }).notNull(),
     /** What the award qualifies for e.g. "World Championship" */
-    qualifiesFor: varchar("qualifiesFor", { length: 128 }),
+    qualifiesFor: varchar("qualifiesFor", { length: 512 }),
     createdAt: timestamp("createdAt").defaultNow().notNull(),
   },
   (t) => [
@@ -151,6 +151,36 @@ export const teamAwards = mysqlTable(
 
 export type TeamAward = typeof teamAwards.$inferSelect;
 export type InsertTeamAward = typeof teamAwards.$inferInsert;
+
+/**
+ * Tracks per-team background scrape jobs.
+ * One row per team — upserted on each sync attempt.
+ */
+export const teamSyncJobs = mysqlTable(
+  "team_sync_jobs",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    teamNumber: varchar("teamNumber", { length: 16 }).notNull(),
+    /** "pending" | "running" | "done" | "error" */
+    status: varchar("status", { length: 16 }).notNull().default("pending"),
+    /** Number of events found during last sync */
+    eventsFound: int("eventsFound").default(0),
+    /** Number of match records saved */
+    matchRecords: int("matchRecords").default(0),
+    /** Number of awards saved */
+    awardsFound: int("awardsFound").default(0),
+    errorMessage: text("errorMessage"),
+    startedAt: timestamp("startedAt"),
+    completedAt: timestamp("completedAt"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  (t) => [
+    uniqueIndex("uniq_team_sync_jobs_teamNumber").on(t.teamNumber),
+  ]
+);
+
+export type TeamSyncJob = typeof teamSyncJobs.$inferSelect;
+export type InsertTeamSyncJob = typeof teamSyncJobs.$inferInsert;
 
 /** Tracks when data was last synced */
 export const syncLog = mysqlTable("sync_log", {

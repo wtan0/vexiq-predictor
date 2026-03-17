@@ -64,3 +64,14 @@
 
 ## Session 5 Features
 - [x] Add World Qualifiers filter toggle on World Finals page (show only confirmed World Championship qualifier teams)
+
+## Session 6 Bug Fixes
+- [ ] Fix scraper pagination: iterate through ALL pages of Match Results tab (not just page 1)
+
+## Session 6 — Pre-scrape World Qualifiers
+- [x] Fix scraper pagination: use .page-link selector, trim whitespace from » button text
+- [x] Fix qualifiesFor column length (128 → 512) to prevent DB truncation errors
+- [x] Add sync_jobs table to track background scrape progress per team
+- [x] Add syncAllQualifiers endpoint: scrapes all World qualifier teams in background
+- [x] Add getSyncProgress endpoint: returns per-team sync status
+- [x] Add "Sync All Qualifiers" button + live progress panel on World Finals page

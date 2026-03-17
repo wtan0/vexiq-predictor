@@ -72,6 +72,35 @@ export default function WorldFinals() {
   );
   const qualifierSet = new Set(qualifierTeams ?? []);
 
+  const [showSyncPanel, setShowSyncPanel] = useState(false);
+
+  // Poll sync progress every 4s when panel is open
+  const { data: syncProgress, refetch: refetchProgress } = trpc.worldFinals.syncProgress.useQuery(
+    undefined,
+    { enabled: showSyncPanel, refetchInterval: showSyncPanel ? 4000 : false }
+  );
+
+  const syncAllQualifiers = trpc.worldFinals.syncAllQualifiers.useMutation({
+    onSuccess: (data) => {
+      if (data.started) {
+        toast.success(`Started syncing ${data.teamCount} World qualifier teams`, {
+          description: "This runs in the background. Check progress below."
+        });
+        setShowSyncPanel(true);
+        refetchProgress();
+      } else {
+        toast.error(data.message);
+      }
+    },
+    onError: (e) => toast.error(`Sync failed: ${e.message}`),
+  });
+
+  const syncDone = (syncProgress ?? []).filter((j) => j.status === "done").length;
+  const syncRunning = (syncProgress ?? []).filter((j) => j.status === "running").length;
+  const syncError = (syncProgress ?? []).filter((j) => j.status === "error").length;
+  const syncTotal = (syncProgress ?? []).length;
+  const syncPct = syncTotal > 0 ? Math.round(((syncDone + syncError) / syncTotal) * 100) : 0;
+
   const syncTop = trpc.teams.syncTopTeams.useMutation({
     onSuccess: (data) => {
       toast.success(`Synced ${data.synced} teams, ${data.failed} failed`, {
@@ -284,8 +313,95 @@ export default function WorldFinals() {
                 <><Download className="h-3.5 w-3.5 mr-1" /> Sync Top 5</>  
               )}
             </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => syncAllQualifiers.mutate()}
+              disabled={syncAllQualifiers.isPending || syncRunning > 0}
+              className="h-8 border-amber-500/40 text-amber-400 hover:bg-amber-500/10 gap-1.5"
+              title="Pre-scrape full match history for all World Championship qualifier teams"
+            >
+              {syncAllQualifiers.isPending || syncRunning > 0 ? (
+                <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Syncing Qualifiers…</>
+              ) : (
+                <><Star className="h-3.5 w-3.5 fill-amber-400" /> Sync All Qualifiers</>
+              )}
+            </Button>
+            {syncTotal > 0 && (
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => setShowSyncPanel(!showSyncPanel)}
+                className="h-8 text-xs text-muted-foreground hover:text-foreground"
+              >
+                {showSyncPanel ? "Hide" : "Show"} Progress ({syncDone}/{syncTotal})
+              </Button>
+            )}
           </div>
         </div>
+
+        {/* Sync Progress Panel */}
+        {showSyncPanel && syncProgress && syncProgress.length > 0 && (
+          <Card className="bg-card border-border mb-6">
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                  <Star className="h-4 w-4 fill-amber-400 text-amber-400" />
+                  World Qualifier Sync Progress
+                </CardTitle>
+                <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                  <span className="text-green-400">✓ {syncDone} done</span>
+                  {syncRunning > 0 && <span className="text-amber-400 animate-pulse">● {syncRunning} running</span>}
+                  {syncError > 0 && <span className="text-red-400">✕ {syncError} errors</span>}
+                  <span>{syncPct}% complete</span>
+                </div>
+              </div>
+              {/* Progress bar */}
+              <div className="mt-2 h-1.5 bg-secondary rounded-full overflow-hidden">
+                <div
+                  className="h-full rounded-full transition-all duration-500 bg-amber-400"
+                  style={{ width: `${syncPct}%` }}
+                />
+              </div>
+            </CardHeader>
+            <CardContent className="pt-0">
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 max-h-64 overflow-y-auto">
+                {syncProgress.map((job) => (
+                  <div
+                    key={job.teamNumber}
+                    className={`flex items-center gap-2 p-2 rounded-lg border text-xs ${
+                      job.status === "done"
+                        ? "border-green-500/30 bg-green-500/5"
+                        : job.status === "running"
+                        ? "border-amber-500/30 bg-amber-500/5"
+                        : job.status === "error"
+                        ? "border-red-500/30 bg-red-500/5"
+                        : "border-border bg-secondary/30"
+                    }`}
+                  >
+                    <div className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
+                      job.status === "done" ? "bg-green-400" :
+                      job.status === "running" ? "bg-amber-400 animate-pulse" :
+                      job.status === "error" ? "bg-red-400" : "bg-muted-foreground"
+                    }`} />
+                    <div className="flex-1 min-w-0">
+                      <div className="font-semibold text-foreground truncate">{job.teamNumber}</div>
+                      {job.status === "done" && (
+                        <div className="text-muted-foreground">{job.eventsFound}ev / {job.matchRecords}m</div>
+                      )}
+                      {job.status === "error" && (
+                        <div className="text-red-400 truncate" title={job.errorMessage ?? ""}>{job.errorMessage ?? "Error"}</div>
+                      )}
+                      {(job.status === "pending" || job.status === "running") && (
+                        <div className="text-muted-foreground capitalize">{job.status}…</div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {isLoading ? (
           <div className="flex items-center justify-center py-16">

@@ -174,42 +174,62 @@ export async function scrapeTeamPage(teamNumber: string): Promise<{
     await collectEventCodesFromCurrentPage();
 
     // Check for pagination and iterate through all pages
+    // RobotEvents uses Bootstrap pagination: .pagination > .page-item > .page-link
+    // The "»" button has spaces: " » " — must trim when matching
     let pageNum = 1;
     while (true) {
-      // Look for a "next page" link — typically "»" or a page number button
       const hasNextPage = await page.evaluate((currentPage: number) => {
-        // Find pagination links — look for page numbers greater than current
-        const paginationLinks = Array.from(document.querySelectorAll("a, button"));
-        // Look for "»" next button that is not disabled
-        const nextBtn = paginationLinks.find((el) => {
+        // Use .page-link elements for reliable selection
+        const pageLinks = Array.from(document.querySelectorAll(".page-link"));
+
+        // Find the "»" next button — note: text may have surrounding spaces
+        const nextBtn = pageLinks.find((el) => {
           const text = el.textContent?.trim();
           return text === "»" || text === "›" || text === "Next";
         });
-        if (nextBtn && !(nextBtn as HTMLElement).classList.contains("disabled")) {
+        if (nextBtn) {
+          // Check if the parent .page-item is disabled
+          const parentLi = nextBtn.closest(".page-item");
+          if (parentLi && parentLi.classList.contains("disabled")) return false;
           (nextBtn as HTMLElement).click();
           return true;
         }
-        // Also try clicking the next page number
-        const pageNumLink = paginationLinks.find((el) => {
+
+        // Fallback: click the next page number link
+        const nextPageLink = pageLinks.find((el) => {
           const text = el.textContent?.trim();
           return text === String(currentPage + 1);
         });
-        if (pageNumLink) {
-          (pageNumLink as HTMLElement).click();
+        if (nextPageLink) {
+          const parentLi = nextPageLink.closest(".page-item");
+          if (parentLi && parentLi.classList.contains("disabled")) return false;
+          (nextPageLink as HTMLElement).click();
           return true;
         }
+
+        // Last resort: any a/button with next-page text
+        const allLinks = Array.from(document.querySelectorAll("a, button"));
+        const fallbackNext = allLinks.find((el) => {
+          const text = el.textContent?.trim();
+          return text === "»" || text === "›" || text === String(currentPage + 1);
+        });
+        if (fallbackNext) {
+          (fallbackNext as HTMLElement).click();
+          return true;
+        }
+
         return false;
       }, pageNum);
 
       if (!hasNextPage) break;
 
       pageNum++;
-      await sleep(1500);
+      await sleep(2000); // Give Vue/React time to re-render after page change
       const newCodes = await collectEventCodesFromCurrentPage();
-      console.log(`[BrowserScraper] Page ${pageNum}: found ${newCodes} event codes`);
+      console.log(`[BrowserScraper] Page ${pageNum}: found ${newCodes} event codes (total so far: ${allEventCodes.size})`);
 
       // Safety limit
-      if (pageNum >= 10) break;
+      if (pageNum >= 20) break;
     }
 
     console.log(`[BrowserScraper] Found ${allEventCodes.size} total events for team ${teamNumber} across ${pageNum} pages`);

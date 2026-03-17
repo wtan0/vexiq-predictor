@@ -12,9 +12,8 @@ import {
 } from "./analytics";
 import { syncSkillsData, syncTeamMatchData } from "./scraper";
 import { syncTeamFullHistory, scrapeEventData } from "./browserScraper";
-import { teamMatches, teamEvents } from "../drizzle/schema";
+import { teamMatches, teamEvents, teamSyncJobs, teamAwards, teams } from "../drizzle/schema";
 import { getDb } from "./db";
-import { teams, teamAwards } from "../drizzle/schema";
 import { asc, sql, eq, and, desc } from "drizzle-orm";
 
 export const appRouter = router({
@@ -230,6 +229,112 @@ export const appRouter = router({
         .from(teamAwards)
         .where(sql`${teamAwards.qualifiesFor} LIKE '%World%'`);
       return rows.map((r) => r.teamNumber);
+    }),
+
+    // Returns per-team sync job status for all qualifier teams
+    syncProgress: publicProcedure.query(async () => {
+      const db = await getDb();
+      if (!db) return [];
+      // Get all qualifier team numbers
+      const qualRows = await db
+        .selectDistinct({ teamNumber: teamAwards.teamNumber })
+        .from(teamAwards)
+        .where(sql`${teamAwards.qualifiesFor} LIKE '%World%'`);
+      const qualTeams = qualRows.map((r) => r.teamNumber);
+      if (qualTeams.length === 0) return [];
+
+      // Get sync job rows for those teams
+      const jobRows = await db
+        .select()
+        .from(teamSyncJobs)
+        .where(sql`${teamSyncJobs.teamNumber} IN (${sql.join(qualTeams.map((t) => sql`${t}`), sql`, `)})`);
+
+      const jobMap = new Map(jobRows.map((j) => [j.teamNumber, j]));
+
+      return qualTeams.map((teamNumber) => {
+        const job = jobMap.get(teamNumber);
+        return {
+          teamNumber,
+          status: job?.status ?? "pending",
+          eventsFound: job?.eventsFound ?? 0,
+          matchRecords: job?.matchRecords ?? 0,
+          awardsFound: job?.awardsFound ?? 0,
+          errorMessage: job?.errorMessage ?? null,
+          startedAt: job?.startedAt ?? null,
+          completedAt: job?.completedAt ?? null,
+        };
+      });
+    }),
+
+    // Kick off background scrape for all World qualifier teams
+    // Returns immediately; poll syncProgress for updates
+    syncAllQualifiers: publicProcedure.mutation(async () => {
+      const db = await getDb();
+      if (!db) return { started: false, message: "DB unavailable" };
+
+      // Get all qualifier team numbers
+      const qualRows = await db
+        .selectDistinct({ teamNumber: teamAwards.teamNumber })
+        .from(teamAwards)
+        .where(sql`${teamAwards.qualifiesFor} LIKE '%World%'`);
+      const qualTeams = qualRows.map((r) => r.teamNumber);
+
+      if (qualTeams.length === 0) {
+        return { started: false, message: "No World qualifier teams found. Sync skills data first." };
+      }
+
+      // Mark all as pending (upsert)
+      for (const teamNumber of qualTeams) {
+        await db
+          .insert(teamSyncJobs)
+          .values({ teamNumber, status: "pending" })
+          .onDuplicateKeyUpdate({ set: { status: "pending", errorMessage: null } });
+      }
+
+      // Run in background — do NOT await
+      (async () => {
+        for (const teamNumber of qualTeams) {
+          try {
+            // Mark as running
+            await db
+              .update(teamSyncJobs)
+              .set({ status: "running", startedAt: new Date(), errorMessage: null })
+              .where(eq(teamSyncJobs.teamNumber, teamNumber));
+
+            const result = await syncTeamFullHistory(teamNumber);
+
+            await db
+              .update(teamSyncJobs)
+              .set({
+                status: "done",
+                eventsFound: result.eventsFound,
+                matchRecords: result.matchRecords,
+                awardsFound: (result as any).awardsFound ?? 0,
+                completedAt: new Date(),
+              })
+              .where(eq(teamSyncJobs.teamNumber, teamNumber));
+
+            console.log(`[QualifierSync] Done: ${teamNumber} — ${result.eventsFound} events, ${result.matchRecords} matches`);
+          } catch (err: any) {
+            await db
+              .update(teamSyncJobs)
+              .set({
+                status: "error",
+                errorMessage: err?.message ?? "Unknown error",
+                completedAt: new Date(),
+              })
+              .where(eq(teamSyncJobs.teamNumber, teamNumber));
+            console.error(`[QualifierSync] Error for ${teamNumber}:`, err?.message);
+          }
+        }
+        console.log(`[QualifierSync] All ${qualTeams.length} qualifier teams processed.`);
+      })().catch((e) => console.error("[QualifierSync] Fatal:", e));
+
+      return {
+        started: true,
+        teamCount: qualTeams.length,
+        message: `Started background sync for ${qualTeams.length} World qualifier teams.`,
+      };
     }),
   }),
 

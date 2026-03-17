@@ -1,0 +1,9 @@
+{
+  "query": "CREATE TABLE `team_sync_jobs` (\n\t`id` int AUTO_INCREMENT NOT NULL,\n\t`teamNumber` varchar(16) NOT NULL,\n\t`status` varchar(16) NOT NULL DEFAULT 'pending',\n\t`eventsFound` int DEFAULT 0,\n\t`matchRecords` int DEFAULT 0,\n\t`awardsFound` int DEFAULT 0,\n\t`errorMessage` text,\n\t`startedAt` timestamp,\n\t`completedAt` timestamp,\n\t`createdAt` timestamp NOT NULL DEFAULT (now()),\n\tCONSTRAINT `team_sync_jobs_id` PRIMARY KEY(`id`),\n\tCONSTRAINT `uniq_team_sync_jobs_teamNumber` UNIQUE(`teamNumber`)\n);",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2QKfi1Ndea9wXr8.root --database 4tK87PRTpvQf5EmMsJgnMM --execute CREATE TABLE `team_sync_jobs` (\n\t`id` int AUTO_INCREMENT NOT NULL,\n\t`teamNumber` varchar(16) NOT NULL,\n\t`status` varchar(16) NOT NULL DEFAULT 'pending',\n\t`eventsFound` int DEFAULT 0,\n\t`matchRecords` int DEFAULT 0,\n\t`awardsFound` int DEFAULT 0,\n\t`errorMessage` text,\n\t`startedAt` timestamp,\n\t`completedAt` timestamp,\n\t`createdAt` timestamp NOT NULL DEFAULT (now()),\n\tCONSTRAINT `team_sync_jobs_id` PRIMARY KEY(`id`),\n\tCONSTRAINT `uniq_team_sync_jobs_teamNumber` UNIQUE(`teamNumber`)\n);",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 166
+}
