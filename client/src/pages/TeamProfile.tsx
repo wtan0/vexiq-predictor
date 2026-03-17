@@ -20,6 +20,22 @@ import {
 const CHART_GRID = "oklch(0.22 0.02 240)";
 const CHART_TICK = { fill: "oklch(0.60 0.015 240)", fontSize: 11 };
 
+/** Returns a human-readable relative time string like "2 hours ago" or "3 days ago" */
+function formatTimeAgo(date: Date): string {
+  const now = Date.now();
+  const diffMs = now - date.getTime();
+  const diffSec = Math.floor(diffMs / 1000);
+  const diffMin = Math.floor(diffSec / 60);
+  const diffHr = Math.floor(diffMin / 60);
+  const diffDay = Math.floor(diffHr / 24);
+  if (diffSec < 60) return "just now";
+  if (diffMin < 60) return `${diffMin}m ago`;
+  if (diffHr < 24) return `${diffHr}h ago`;
+  if (diffDay === 1) return "yesterday";
+  if (diffDay < 30) return `${diffDay}d ago`;
+  return date.toLocaleDateString();
+}
+
 // ─── EventHistoryTable sub-component ─────────────────────────────────────────
 interface EventHistoryTableProps {
   progress: Array<{
@@ -506,6 +522,17 @@ export default function TeamProfile() {
                 <span className="flex items-center gap-1">
                   <MapPin className="h-3.5 w-3.5" />
                   {stats.eventRegion ? `${stats.eventRegion}, ` : ""}{stats.country}
+                </span>
+              )}
+              {stats.lastSyncedAt ? (
+                <span className="flex items-center gap-1 text-xs text-muted-foreground/70" title={new Date(stats.lastSyncedAt).toLocaleString()}>
+                  <RefreshCw className="h-3 w-3" />
+                  Synced {formatTimeAgo(new Date(stats.lastSyncedAt))}
+                </span>
+              ) : (
+                <span className="flex items-center gap-1 text-xs text-amber-400/70">
+                  <AlertCircle className="h-3 w-3" />
+                  Never synced — click Load History
                 </span>
               )}
             </div>

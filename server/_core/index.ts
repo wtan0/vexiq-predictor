@@ -7,6 +7,7 @@ import { registerOAuthRoutes } from "./oauth";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
+import { scheduleNightlySync, scheduleStartupPrescrape } from "../cron";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -59,6 +60,10 @@ async function startServer() {
 
   server.listen(port, () => {
     console.log(`Server running on http://localhost:${port}/`);
+    // Schedule nightly re-sync of all World qualifier teams at 3:00 AM
+    scheduleNightlySync();
+    // On startup: pre-scrape any qualifier teams that have never been synced
+    scheduleStartupPrescrape();
   });
 }
 

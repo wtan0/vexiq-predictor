@@ -51,6 +51,8 @@ export const teams = mysqlTable(
     driverScoreAt: timestamp("driverScoreAt"),
     /** Timestamp of best auto score attempt */
     autoScoreAt: timestamp("autoScoreAt"),
+    /** When match history was last scraped from RobotEvents */
+    lastSyncedAt: timestamp("lastSyncedAt"),
     createdAt: timestamp("createdAt").defaultNow().notNull(),
     updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
   },

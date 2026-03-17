@@ -83,3 +83,10 @@
 - [x] Fix scraper pagination: reliably iterate ALL pages for teams with multi-page match records (e.g. 81777A)
   - Root cause: "»" is the LAST PAGE button (not next page) — was skipping page 2 and jumping to last
   - Fix: click numbered page link (e.g. "2") first; fall back to "›" single chevron only
+
+## Session 9 Features
+- [x] Add lastSyncedAt column to teams table (migration)
+- [x] Update syncTeamHistory to stamp lastSyncedAt on completion
+- [x] Show "Last synced X ago" on team profile header (with "Never synced" warning)
+- [x] Add nightly cron job (3:00 AM) that re-runs syncAllQualifiers automatically
+- [x] Startup pre-scrape: on boot, auto-sync any qualifier teams with lastSyncedAt IS NULL

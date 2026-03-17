@@ -50,6 +50,13 @@
       "when": 1773706323815,
       "tag": "0006_chemical_madripoor",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "5",
+      "when": 1773708373725,
+      "tag": "0007_nifty_edwin_jarvis",
+      "breakpoints": true
     }
   ]
 }

@@ -35,6 +35,7 @@ import {
   teamEvents,
   teamMatches,
   teamAwards,
+  teams,
   InsertTeamEvent,
   InsertTeamMatch,
   InsertTeamAward,
@@ -757,6 +758,14 @@ export async function syncTeamFullHistory(teamNumber: string): Promise<{
     console.warn("[BrowserScraper] Error closing dedicated browser:", e);
   }
   _browser = originalBrowser;
+
+  // Stamp lastSyncedAt on the team record
+  try {
+    const db = await getDb();
+    if (db) await db.update(teams).set({ lastSyncedAt: new Date() }).where(eq(teams.teamNumber, teamNumber));
+  } catch (e) {
+    console.warn(`[BrowserScraper] Could not stamp lastSyncedAt for ${teamNumber}:`, e);
+  }
 
   console.log(
     `[BrowserScraper] Completed sync for ${teamNumber}: ${eventCodes.length} events, ${skillsCount} skills records, ${matchCount} match records, ${awardsCount} awards`

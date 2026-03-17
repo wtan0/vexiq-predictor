@@ -31,6 +31,8 @@ export interface TeamStats {
   // Composite score for world finals prediction
   compositeScore: number;
   worldFinalsOdds: number; // 0-100 percentage
+  // Sync metadata
+  lastSyncedAt: Date | null;
 }
 
 export interface HeadToHeadResult {
@@ -173,6 +175,7 @@ export async function getTeamStats(teamNumber: string): Promise<TeamStats | null
     bestEventRank,
     compositeScore,
     worldFinalsOdds: 0, // Will be set in world finals calculation
+    lastSyncedAt: team.lastSyncedAt ?? null,
   };
 }
 
