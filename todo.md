@@ -90,3 +90,6 @@
 - [x] Show "Last synced X ago" on team profile header (with "Never synced" warning)
 - [x] Add nightly cron job (3:00 AM) that re-runs syncAllQualifiers automatically
 - [x] Startup pre-scrape: on boot, auto-sync any qualifier teams with lastSyncedAt IS NULL
+
+## Session 10 Features
+- [x] Add sparkline chart in expanded event rows (match score trend per event)

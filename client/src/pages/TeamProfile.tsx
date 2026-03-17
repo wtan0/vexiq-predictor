@@ -123,6 +123,7 @@ function EventHistoryTable({ progress, teamNumber, navigate, onRefresh }: EventH
                 const declined = prevTotal !== null && total < prevTotal;
                 const isExpanded = expandedEvent === p.eventCode;
                 const isResyncing = resyncingEvent === p.eventCode;
+                const sparkGradId = `sparkGrad-${p.eventCode ?? i}`;
 
                 return (
                   <React.Fragment key={p.eventCode ?? `event-${i}`}>
@@ -247,6 +248,48 @@ function EventHistoryTable({ progress, teamNumber, navigate, onRefresh }: EventH
                               <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading matches…
                             </div>
                           ) : expandedMatches && expandedMatches.length > 0 ? (
+                            <div className="space-y-3">
+                              {/* Sparkline chart */}
+                              {expandedMatches.some((m) => (m.allianceScore ?? 0) > 0) && (
+                                <div>
+                                  <p className="text-xs text-muted-foreground mb-1 flex items-center gap-1">
+                                    <TrendingUp className="h-3 w-3" /> Match Score Trend
+                                  </p>
+                                  <ResponsiveContainer width="100%" height={72}>
+                                    <AreaChart
+                                      data={expandedMatches
+                                        .filter((m) => (m.allianceScore ?? 0) > 0)
+                                        .map((m, idx) => ({ idx: idx + 1, score: m.allianceScore ?? 0, name: m.matchName }))}
+                                      margin={{ top: 4, right: 8, left: 0, bottom: 0 }}
+                                    >
+                                      <defs>
+                                        <linearGradient id={sparkGradId} x1="0" y1="0" x2="0" y2="1">
+                                          <stop offset="5%" stopColor="oklch(0.72 0.19 142)" stopOpacity={0.35} />
+                                          <stop offset="95%" stopColor="oklch(0.72 0.19 142)" stopOpacity={0} />
+                                        </linearGradient>
+                                      </defs>
+                                      <CartesianGrid strokeDasharray="3 3" stroke={CHART_GRID} vertical={false} />
+                                      <XAxis dataKey="idx" tick={CHART_TICK} tickLine={false} axisLine={false} />
+                                      <YAxis tick={CHART_TICK} tickLine={false} axisLine={false} width={32}
+                                        domain={["auto", "auto"]} />
+                                      <Tooltip
+                                        contentStyle={{ background: "oklch(0.16 0.02 240)", border: "1px solid oklch(0.28 0.02 240)", borderRadius: 6, fontSize: 11 }}
+                                        formatter={(val: number) => [`${val}`, "Score"]}
+                                        labelFormatter={(label, payload) => payload?.[0]?.payload?.name ?? `Match ${label}`}
+                                      />
+                                      <Area
+                                        type="monotone"
+                                        dataKey="score"
+                                        stroke="oklch(0.72 0.19 142)"
+                                        strokeWidth={2}
+                                        fill={`url(#${sparkGradId})`}
+                                        dot={{ r: 3, fill: "oklch(0.72 0.19 142)", strokeWidth: 0 }}
+                                        activeDot={{ r: 5, fill: "oklch(0.85 0.19 142)" }}
+                                      />
+                                    </AreaChart>
+                                  </ResponsiveContainer>
+                                </div>
+                              )}
                             <div className="overflow-x-auto">
                               <table className="w-full text-xs">
                                 <thead>
@@ -289,6 +332,7 @@ function EventHistoryTable({ progress, teamNumber, navigate, onRefresh }: EventH
                                   ))}
                                 </tbody>
                               </table>
+                            </div>
                             </div>
                           ) : (
                             <p className="text-muted-foreground text-xs py-2">
