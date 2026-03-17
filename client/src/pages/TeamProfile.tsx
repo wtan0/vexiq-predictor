@@ -270,16 +270,13 @@ function EventHistoryTable({ progress, teamNumber, navigate, onRefresh }: EventH
                               <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading matches…
                             </div>
                           ) : expandedMatches && expandedMatches.length > 0 ? (() => {
-                              // Detect final round: the highest-numbered TeamWork match
-                              const matchNums = expandedMatches
-                                .map(m => { const n = m.matchName?.match(/#(\d+)/); return n ? parseInt(n[1]) : 0; })
-                                .filter(n => n > 0);
-                              const finalMatchNum = matchNums.length > 0 ? Math.max(...matchNums) : null;
+                              // Detect final round: match named "Match #X-Y" (e.g. "Match #1-9")
+                              // These are the playoff/final rounds, distinct from regular "TeamWork #N" matches
                               const isFinalMatch = (matchName: string | null) => {
-                                if (!finalMatchNum || !matchName) return false;
-                                const n = matchName.match(/#(\d+)/);
-                                return n ? parseInt(n[1]) === finalMatchNum : false;
+                                if (!matchName) return false;
+                                return /^Match\s*#\d+-\d+/i.test(matchName);
                               };
+                              const hasFinalMatch = expandedMatches.some(m => isFinalMatch(m.matchName));
                               return (
                             <div className="space-y-3">
                               {/* Sparkline chart */}
@@ -287,7 +284,7 @@ function EventHistoryTable({ progress, teamNumber, navigate, onRefresh }: EventH
                                 <div>
                                   <p className="text-xs text-muted-foreground mb-1 flex items-center gap-1">
                                     <TrendingUp className="h-3 w-3" /> Match Score Trend
-                                    {finalMatchNum && <span className="ml-2 text-amber-400/80">(★ = Final Round #{finalMatchNum})</span>}
+                                    {hasFinalMatch && <span className="ml-2 text-amber-400/80">(★ = Final Round)</span>}
                                   </p>
                                   <ResponsiveContainer width="100%" height={72}>
                                     <AreaChart

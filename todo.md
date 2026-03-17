@@ -104,3 +104,6 @@
 - [x] Add finalistRank + finalistScore columns to team_events table
 - [x] Update scraper to capture Finalist Ranking table (Rank|Team|Name|Score, 4-col exact match)
 - [x] Display finalist rank/score in event history row (gold/silver/bronze badges + score)
+
+## Session 13 Bug Fixes
+- [x] Fix final round detection: use "Match #X-Y" pattern (e.g. "Match #1-9") — these are the playoff finals
