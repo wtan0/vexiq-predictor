@@ -1,16 +1,19 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
-import { Search, Trophy, Swords, TrendingUp, Globe, Database, RefreshCw, ChevronRight, Zap } from "lucide-react";
+import { Search, Trophy, Swords, TrendingUp, Globe, Database, RefreshCw, ChevronRight, Zap, UserPlus, LogIn } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
+import { useAuth } from "@/_core/hooks/useAuth";
+import { getLoginUrl, getSignUpUrl } from "@/const";
 
 export default function Home() {
   const [, navigate] = useLocation();
   const [searchQuery, setSearchQuery] = useState("");
+  const { user } = useAuth();
 
   const syncStatus = trpc.sync.status.useQuery(undefined, { refetchInterval: 10000 });
   const triggerSync = trpc.sync.triggerSkillsSync.useMutation({
@@ -138,6 +141,34 @@ export default function Home() {
                 World Finals Odds
               </Button>
             </div>
+
+            {/* Sign Up / Sign In CTA for logged-out visitors */}
+            {!user && (
+              <div className="mt-10 pt-8 border-t border-border/40">
+                <p className="text-sm text-muted-foreground mb-4">
+                  Create a free account to sync team data and unlock all features.
+                </p>
+                <div className="flex items-center justify-center gap-3">
+                  <Button
+                    size="lg"
+                    className="bg-primary hover:bg-primary/90 gap-2 shadow-lg shadow-primary/20"
+                    onClick={() => { window.location.href = getSignUpUrl(); }}
+                  >
+                    <UserPlus className="h-4 w-4" />
+                    Create Free Account
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="lg"
+                    className="gap-2 border-border hover:bg-secondary"
+                    onClick={() => { window.location.href = getLoginUrl(); }}
+                  >
+                    <LogIn className="h-4 w-4" />
+                    Sign In
+                  </Button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </section>

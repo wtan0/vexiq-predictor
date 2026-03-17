@@ -151,3 +151,10 @@
 - [x] Admin Manage Users page at /admin/users with role toggle buttons, stats cards, search, invite source column
 - [x] Admin nav entry in NavBar (visible only to admin users, yellow highlight)
 - [x] 10 unit tests for admin procedures (42 total tests pass)
+
+## Session 21 Feature — Open Sign-Up
+- [x] Audit OAuth callback — upsertUser already creates accounts on first login (no gate)
+- [x] Enable returnPath in getLoginUrl/getSignUpUrl + OAuth callback parses returnPath from state
+- [x] Add Sign In / Sign Up buttons to NavBar for logged-out users (with Sign Out for logged-in)
+- [x] Add Create Free Account + Sign In CTA to Home hero section (hidden when logged in)
+- [x] getSignUpUrl helper added to const.ts (type=signUp on OAuth portal)
