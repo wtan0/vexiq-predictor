@@ -228,7 +228,7 @@ function EventHistoryTable({ progress, teamNumber, navigate, onRefresh }: EventH
                                 key={pt}
                                 variant="outline"
                                 className="text-xs border-border/60 text-muted-foreground hover:text-foreground cursor-pointer"
-                                onClick={() => navigate(`/teams/${pt}`)}
+                                onClick={() => navigate(`/team/${pt}`)}
                               >
                                 {pt}
                               </Badge>
@@ -349,7 +349,7 @@ function EventHistoryTable({ progress, teamNumber, navigate, onRefresh }: EventH
                                         {m.partnerTeam ? (
                                           <button
                                             className="text-primary hover:underline font-mono"
-                                            onClick={() => navigate(`/teams/${m.partnerTeam}`)}
+                                            onClick={() => navigate(`/team/${m.partnerTeam}`)}
                                           >
                                             {m.partnerTeam}
                                           </button>

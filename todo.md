@@ -107,3 +107,6 @@
 
 ## Session 13 Bug Fixes
 - [x] Fix final round detection: use "Match #X-Y" pattern (e.g. "Match #1-9") — these are the playoff finals
+
+## Session 14 Bug Fixes
+- [x] Fix partner team link 404: was navigating to /teams/X (plural) but route is /team/X (singular)
