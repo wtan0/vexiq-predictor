@@ -24,6 +24,8 @@ import {
   ChevronDown,
   ChevronRight,
   UserCheck,
+  Info,
+  ExternalLink,
 } from "lucide-react";
 
 interface InviteModalProps {
@@ -85,7 +87,6 @@ function AcceptedByList({ token }: { token: string }) {
     <div className="space-y-1.5 pt-1">
       {data.map((u) => (
         <div key={u.openId} className="flex items-center gap-2">
-          {/* Avatar circle */}
           <div className="h-6 w-6 rounded-full bg-primary/20 flex items-center justify-center flex-shrink-0">
             <span className="text-[10px] font-bold text-primary">{getInitials(u.name)}</span>
           </div>
@@ -112,7 +113,7 @@ export function InviteModal({ open, onClose }: InviteModalProps) {
   const createInvite = trpc.invites.create.useMutation({
     onSuccess: ({ token }) => {
       toast.success("Invite link created!", {
-        description: "Copy the link and share it with anyone you want to invite.",
+        description: "Share this link with anyone who already has a Manus account.",
       });
       setLabel("");
       setExpiresInDays("");
@@ -164,16 +165,42 @@ export function InviteModal({ open, onClose }: InviteModalProps) {
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-foreground">
             <Link2 className="h-5 w-5 text-primary" />
-            Invite by Link
+            Invite to App
           </DialogTitle>
           <DialogDescription className="text-muted-foreground">
-            Generate a shareable link. Anyone who opens it and logs in will gain access to this app.
+            Share access with people who already have a Manus account.
           </DialogDescription>
         </DialogHeader>
 
+        {/* Platform restriction notice */}
+        <div className="flex gap-3 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3">
+          <Info className="h-4 w-4 text-amber-400 flex-shrink-0 mt-0.5" />
+          <div className="space-y-1.5">
+            <p className="text-xs font-medium text-amber-300">Inviting new users (no Manus account)</p>
+            <p className="text-xs text-amber-200/80">
+              This app is in restricted-access mode. To invite someone who doesn't have a Manus account yet,
+              you must first add them via the{" "}
+              <strong className="text-amber-200">Manus Management UI → Settings → Members</strong>.
+              Once they have a Manus account and have been added to the app, they can use the link below to join.
+            </p>
+            <a
+              href="https://help.manus.im"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 text-xs text-amber-300 hover:text-amber-200 underline underline-offset-2"
+            >
+              Learn more <ExternalLink className="h-3 w-3" />
+            </a>
+          </div>
+        </div>
+
         {/* Create new invite */}
         <div className="space-y-3 border border-border rounded-lg p-4 bg-background/40">
-          <p className="text-sm font-medium text-foreground">Create New Invite Link</p>
+          <p className="text-sm font-medium text-foreground">Create Invite Link</p>
+          <p className="text-xs text-muted-foreground">
+            Generate a link for existing Manus users to join this app. They will be automatically registered
+            when they open the link and log in.
+          </p>
           <div className="space-y-2">
             <Label htmlFor="invite-label" className="text-xs text-muted-foreground">
               Label (optional)

@@ -158,3 +158,8 @@
 - [x] Add Sign In / Sign Up buttons to NavBar for logged-out users (with Sign Out for logged-in)
 - [x] Add Create Free Account + Sign In CTA to Home hero section (hidden when logged in)
 - [x] getSignUpUrl helper added to const.ts (type=signUp on OAuth portal)
+
+## Session 22 Bug Fix — Invite Link in Team-Only Mode
+- [x] Investigated: error comes from Manus OAuth portal (platform-level restriction, not app code)
+- [x] App code has no platform invite API calls — invite links are already self-contained app-level tokens
+- [x] Updated InviteModal: amber warning banner explaining platform restriction; clarified links work for existing Manus users only; added instructions to use Manus Management UI for new users without accounts
