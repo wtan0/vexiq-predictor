@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { SyncProgressModal } from "@/components/SyncProgressModal";
+import { TeamReportPDF } from "@/components/TeamReportPDF";
 import { useParams, useLocation } from "wouter";
 import { Award } from "lucide-react";
 import {
@@ -841,6 +842,10 @@ export default function TeamProfile() {
                 <LogIn className="h-4 w-4 mr-2" /> Sign in to load history
               </Button>
             )}
+            <TeamReportPDF
+              stats={stats}
+              progress={progress ?? []}
+            />
             <Button
               size="sm"
               onClick={() => navigate(`/compare?teamA=${teamNumber}`)}

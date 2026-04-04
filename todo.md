@@ -171,3 +171,11 @@
 - [x] WorldFinals.tsx: Sync Top 5 + Sync All Qualifiers gated — shows "Sign in to sync" for logged-out users
 - [x] TeamProfile.tsx: Load History buttons (header + empty state) gated — shows "Sign in to load history" for logged-out users
 - [x] All 42 tests pass
+
+## Session 24 Feature — PDF Export Report
+- [x] Client-side PDF generation using jsPDF + html2canvas (works in production, no Chromium needed)
+- [x] TeamReportPDF component: stats grid, win probability bar, finalist rank history table, season event history table, footer with sync date
+- [x] ComparisonReportPDF component: winner callout, side-by-side team cards, probability bar, stat breakdown table, model weight breakdown
+- [x] Export Report button on Team Profile page (next to Compare button)
+- [x] Export Comparison button on Head-to-Head page (top-right of results section)
+- [x] All 42 tests pass

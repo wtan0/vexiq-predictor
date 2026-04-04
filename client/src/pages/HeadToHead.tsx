@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useSearch, useLocation } from "wouter";
+import { ComparisonReportPDF } from "@/components/ComparisonReportPDF";
 import {
   Swords, Search, Loader2, Trophy, Zap, Target, TrendingUp,
   BarChart3, Users, ArrowRight, ChevronRight
@@ -299,6 +300,10 @@ export default function HeadToHead() {
         {/* Results */}
         {result && !isLoading && (
           <div className="space-y-6">
+            {/* Export button */}
+            <div className="flex justify-end">
+              <ComparisonReportPDF result={result} />
+            </div>
             {/* Win Probability */}
             <Card className="bg-card border-border">
               <CardHeader>
