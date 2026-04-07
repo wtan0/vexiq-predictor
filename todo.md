@@ -179,3 +179,10 @@
 - [x] Export Report button on Team Profile page (next to Compare button)
 - [x] Export Comparison button on Head-to-Head page (top-right of results section)
 - [x] All 42 tests pass
+
+## Session 25 Feature — Award Potential Analysis
+- [x] Audited award data: 7 categories (Excellence, Teamwork Champion, Robot Skills Champion, Design, Think, Build, Create)
+- [x] tRPC awards.analyzeAwardPotential: rule-based scoring using skills rank, win rate, avg score, award history counts; LLM 2-3 sentence narrative
+- [x] AwardPotential component: LLM insight banner, top-award highlight, expandable category cards with evidence signals, award history toggle, stats footer
+- [x] Integrated into TeamProfile (above the Awards & Honors section)
+- [x] All 42 tests pass

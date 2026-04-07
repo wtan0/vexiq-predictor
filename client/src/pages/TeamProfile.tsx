@@ -3,6 +3,7 @@ import { SyncProgressModal } from "@/components/SyncProgressModal";
 import { TeamReportPDF } from "@/components/TeamReportPDF";
 import { useParams, useLocation } from "wouter";
 import { Award } from "lucide-react";
+import { AwardPotential } from "@/components/AwardPotential";
 import {
   Trophy, MapPin, Building2, TrendingUp, Swords, ArrowLeft,
   RefreshCw, Loader2, Target, Zap, Users, BarChart3,
@@ -1124,6 +1125,10 @@ export default function TeamProfile() {
           </Card>
         ) : null}
 
+        {/* ── Award Potential Analysis ──────────────────────────────── */}
+        {stats && (
+          <AwardPotential teamNumber={teamNumber} />
+        )}
         {/* ── Awards Section ─────────────────────────────────────────────── */}
         {awards && awards.length > 0 && (
           <Card className="bg-card border-border">
